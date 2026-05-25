@@ -57,8 +57,32 @@ export async function startTgListener(forwardHandler) {
   bot.on("message", async (ctx) => {
     try {
       const chatId = ctx.chat.id;
-      // Skip updates from VK bot itself to avoid infinite loops if it posts to the same chat
+      const text = ctx.message.text || "";
+
+      // Skip updates from other bots
       if (ctx.from?.is_bot) return;
+
+      // 1. Handle connect pin-code onboarding command
+      if (text.startsWith("/connect")) {
+        const parts = text.split(" ");
+        const code = parts[1]?.trim();
+
+        if (!code) {
+          await ctx.reply("Пожалуйста, укажите пин-код подключения. Пример: /connect 123456");
+          return;
+        }
+
+        const validation = dbHelper.validateTempCode(code, "tg");
+        if (validation) {
+          const chatTitle = ctx.chat.title || ctx.chat.first_name || "Telegram Chat";
+          dbHelper.addConnectedChat(validation.user_id, "tg", chatId, chatTitle);
+          await ctx.reply(`Чат "${chatTitle}" успешно подключен к панели управления!`);
+          console.log(`Telegram Chat connected: userId=${validation.user_id} chatId=${chatId} title=${chatTitle}`);
+        } else {
+          await ctx.reply("Неверный или истекший пин-код подключения.");
+        }
+        return;
+      }
 
       const bridge = dbHelper.getBridgeByTg(chatId);
 
@@ -67,11 +91,10 @@ export async function startTgListener(forwardHandler) {
         logCount++;
       }
 
-      if (!bridge) return;
-
-      // Check if forwarding in this direction is enabled (tg_to_vk)
-      if (bridge.direction === "tg_to_vk") {
-        await forwardHandler(ctx, bridge, "tg_to_vk");
+      // 2. Dynamic routing to multiple targets (TG -> VK, TG -> TG, etc.)
+      const activeBridges = dbHelper.getBridgesBySource("tg", chatId);
+      for (const bridge of activeBridges) {
+        await forwardHandler(ctx, bridge);
       }
     } catch (err) {
       console.error("Error processing TG message:", err);
