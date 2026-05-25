@@ -1,6 +1,0 @@
-name: bot
-services:
-  vk-tg-forwarder:
-    build: .
-    env_file: .env
-    restart: unless-stopped

@@ -1,21 +1,11 @@
 {
-  "name": "vk-tg-forwarder",
-  "version": "1.0.0",
-  "description": "Forwards messages and photos from a VK group chat to a Telegram group via VK User Long Poll API",
-  "type": "module",
-  "main": "src/index.js",
+  "name": "vk-tg-forwarder-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
-    "start": "node src/index.js"
-  },
-  "dependencies": {
-    "dotenv": "^16.4.5",
-    "grammy": "^1.36.1",
-    "https-proxy-agent": "^9.0.0",
-    "socks-proxy-agent": "^10.0.0",
-    "vk-io": "^4.10.1"
-  },
-  "engines": {
-    "node": ">=20"
-  },
-  "license": "MIT"
+    "dev:bot": "bun --filter bot-engine dev",
+    "start:bot": "bun --filter bot-engine start"
+  }
 }

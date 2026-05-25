@@ -1,21 +1,47 @@
-MIT License
+Business Source License 1.1
 
-Copyright (c) 2026 lukon
+Parameters:
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Licensor:           Lukon
+Licensed Work:      VK-TG-forwarder (including all source code, assets, and documentation)
+Additional Use:     You are permitted to use the Licensed Work for personal, non-commercial,
+                    and internal business self-hosted purposes.
+Change Date:        May 25, 2029
+Change License:     Apache License, Version 2.0 (as specified below)
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. Grant of License
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+The Licensor hereby grants you the right to copy, modify, create derivative works, redistribute,
+and run the Licensed Work solely for the purposes permitted by the Additional Use Grant.
+
+Any use of the Licensed Work that is not explicitly permitted by the Additional Use Grant is
+prohibited unless you obtain a separate commercial license from the Licensor. Specifying, hosting,
+or providing the Licensed Work (or any derivative thereof) as a commercial, hosted, or managed service
+that competes with the official hosted services of the Licensor is strictly prohibited.
+
+2. Change to Open Source License
+
+On the Change Date, or in the event of a change of license by the Licensor prior to the Change Date,
+this License shall convert to the Change License (Apache License, Version 2.0).
+
+3. Notice
+
+You must include this License file in all copies or substantial portions of the Licensed Work.
+
+--------------------------------------------------------------------------------------------------
+
+Change License (Apache License, Version 2.0)
+
+Copyright 2026 Lukon
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.

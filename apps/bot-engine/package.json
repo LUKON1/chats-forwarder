@@ -1,0 +1,16 @@
+{
+  "name": "bot-engine",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "bun --watch src/index.js",
+    "start": "bun src/index.js"
+  },
+  "dependencies": {
+    "grammy": "1.36.1",
+    "https-proxy-agent": "9.0.0",
+    "socks-proxy-agent": "10.0.0",
+    "vk-io": "4.10.1"
+  }
+}

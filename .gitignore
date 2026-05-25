@@ -35,6 +35,10 @@ dist-ssr
 *.sln
 *.sw?
 
+.bun/
+bun.lockb
+
+
 # Test Coverage
 coverage/
 .vitest_cache/

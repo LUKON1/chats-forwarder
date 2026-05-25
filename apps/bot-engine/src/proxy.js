@@ -1,6 +1,7 @@
 import { SocksProxyAgent } from "socks-proxy-agent";
 import { HttpsProxyAgent } from "https-proxy-agent";
 
+// Generate Socks/HTTP agent based on standard environment variables
 export function getProxyAgent(targetDomain) {
   const proxyUrl =
     process.env.HTTPS_PROXY ||
@@ -12,7 +13,7 @@ export function getProxyAgent(targetDomain) {
 
   if (proxyUrl.startsWith("socks")) {
     console.log(`Using SOCKS proxy for ${targetDomain || "any"}: ${proxyUrl}`);
-    // Passing tls.servername to fix 'unrecognized name' SSL alerts when forcing IPv4
+    // Pass tls.servername to prevent 'unrecognized name' SSL alerts
     return new SocksProxyAgent(proxyUrl, {
       tls: targetDomain ? { servername: targetDomain } : undefined,
     });
