@@ -43,29 +43,64 @@ export default function Dashboard() {
       push("/login");
     } else {
       setIsAuthenticated(true);
-      loadData(token);
+      loadData();
     }
   }, [push]);
 
+  // Helper to fetch with automatic token refresh
+  const fetchWithAuth = async (url, options = {}) => {
+    let token = localStorage.getItem("token");
+    if (!options.headers) {
+      options.headers = {};
+    }
+    options.headers["Authorization"] = `Bearer ${token}`;
+
+    let res = await fetch(url, options);
+
+    if (res.status === 401) {
+      const refreshToken = localStorage.getItem("refresh_token");
+      if (!refreshToken) {
+        handleLogout();
+        throw new Error("Unauthorized");
+      }
+
+      try {
+        const refreshRes = await fetch("http://localhost:4000/api/auth/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken })
+        });
+
+        if (refreshRes.ok) {
+          const refreshData = await refreshRes.json();
+          localStorage.setItem("token", refreshData.accessToken);
+          
+          // Retry the request with the new access token
+          options.headers["Authorization"] = `Bearer ${refreshData.accessToken}`;
+          res = await fetch(url, options);
+        } else {
+          handleLogout();
+          throw new Error("Session expired");
+        }
+      } catch (err) {
+        handleLogout();
+        throw err;
+      }
+    }
+
+    return res;
+  };
+
   // Load chats and pipelines from bot engine API
-  const loadData = async (token) => {
+  const loadData = async () => {
     setIsLoading(true);
     setApiError("");
     try {
       // 1. Fetch connected chats pool
-      const chatsRes = await fetch("http://localhost:4000/api/chats", {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
+      const chatsRes = await fetchWithAuth("http://localhost:4000/api/chats");
       
       // 2. Fetch forwarding pipelines (bridges)
-      const bridgesRes = await fetch("http://localhost:4000/api/bridges", {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-
-      if (chatsRes.status === 401 || bridgesRes.status === 401) {
-        handleLogout();
-        return;
-      }
+      const bridgesRes = await fetchWithAuth("http://localhost:4000/api/bridges");
 
       if (!chatsRes.ok || !bridgesRes.ok) {
         throw new Error("Failed to load dashboard data from API");
@@ -101,9 +136,22 @@ export default function Dashboard() {
   };
 
   /* Handle log out */
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const refreshToken = localStorage.getItem("refresh_token");
+    if (refreshToken) {
+      try {
+        await fetch("http://localhost:4000/api/auth/logout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken })
+        });
+      } catch (err) {
+        console.error("Failed to notify server about logout:", err);
+      }
+    }
     localStorage.removeItem("is_logged_in");
     localStorage.removeItem("token");
+    localStorage.removeItem("refresh_token");
     localStorage.removeItem("user");
     push("/login");
   };
@@ -114,13 +162,11 @@ export default function Dashboard() {
     setGeneratedCode(null);
     setGeneratingCode(true);
 
-    const token = localStorage.getItem("token");
     try {
-      const res = await fetch("http://localhost:4000/api/connect/code", {
+      const res = await fetchWithAuth("http://localhost:4000/api/connect/code", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({ platform: codePlatform })
       });
@@ -141,16 +187,12 @@ export default function Dashboard() {
 
   /* Disconnect chat from pool */
   const handleDeleteChat = async (platform, chatId) => {
-    const token = localStorage.getItem("token");
     try {
-      const res = await fetch(`http://localhost:4000/api/chats/${platform}/${chatId}`, {
-        method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
+      const res = await fetchWithAuth(`http://localhost:4000/api/chats/${platform}/${chatId}`, {
+        method: "DELETE"
       });
       if (res.ok) {
-        loadData(token);
+        loadData();
       } else {
         const data = await res.json();
         alert(data.error || "Failed to disconnect chat");
@@ -165,13 +207,11 @@ export default function Dashboard() {
     e.preventDefault();
     if (!newRouteTitle || !newRouteSource || !newRouteTarget) return;
 
-    const token = localStorage.getItem("token");
     try {
-      const res = await fetch("http://localhost:4000/api/bridges", {
+      const res = await fetchWithAuth("http://localhost:4000/api/bridges", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
           title: newRouteTitle,
@@ -190,7 +230,7 @@ export default function Dashboard() {
         setNewRouteSource("");
         setNewRouteTarget("");
         setNewRouteFilters("");
-        loadData(token);
+        loadData();
       } else {
         const data = await res.json();
         alert(data.error || "Failed to create pipeline");
@@ -202,20 +242,18 @@ export default function Dashboard() {
 
   /* Toggle bridge active status */
   const handleToggleRoute = async (id, currentActive) => {
-    const token = localStorage.getItem("token");
     try {
-      const res = await fetch(`http://localhost:4000/api/bridges/${id}`, {
+      const res = await fetchWithAuth(`http://localhost:4000/api/bridges/${id}`, {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
           is_active: currentActive ? 0 : 1
         })
       });
       if (res.ok) {
-        loadData(token);
+        loadData();
       }
     } catch (err) {
       console.error(err);
@@ -224,16 +262,14 @@ export default function Dashboard() {
 
   /* Reverse bridge direction flow */
   const handleReverseDirection = async (route) => {
-    const token = localStorage.getItem("token");
     const newSourcePlatform = route.direction === "vk-to-tg" ? "tg" : "vk";
     const newTargetPlatform = route.direction === "vk-to-tg" ? "vk" : "tg";
 
     try {
-      const res = await fetch(`http://localhost:4000/api/bridges/${route.id}`, {
+      const res = await fetchWithAuth(`http://localhost:4000/api/bridges/${route.id}`, {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
           source_platform: newSourcePlatform,
@@ -243,7 +279,7 @@ export default function Dashboard() {
         })
       });
       if (res.ok) {
-        loadData(token);
+        loadData();
       }
     } catch (err) {
       console.error(err);
@@ -252,16 +288,12 @@ export default function Dashboard() {
 
   /* Delete bridge */
   const handleDeleteRoute = async (id) => {
-    const token = localStorage.getItem("token");
     try {
-      const res = await fetch(`http://localhost:4000/api/bridges/${id}`, {
-        method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
+      const res = await fetchWithAuth(`http://localhost:4000/api/bridges/${id}`, {
+        method: "DELETE"
       });
       if (res.ok) {
-        loadData(token);
+        loadData();
       }
     } catch (err) {
       console.error(err);

@@ -29,7 +29,8 @@ export default function Login() {
 
       if (res.ok && data.success) {
         localStorage.setItem("is_logged_in", "true");
-        localStorage.setItem("token", data.token);
+        localStorage.setItem("token", data.accessToken);
+        localStorage.setItem("refresh_token", data.refreshToken);
         localStorage.setItem("user", JSON.stringify(data.user));
         push("/dashboard");
       } else {

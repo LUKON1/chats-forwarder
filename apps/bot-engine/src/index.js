@@ -2,7 +2,7 @@ import { startVkListener } from "./vk.js";
 import { startTgListener } from "./tg.js";
 import { forwardVkToTg, forwardTgToVk } from "./forwarder.js";
 import { dbHelper } from "./db.js";
-import { generateJWT, verifyJWT } from "./jwt.js";
+import { generateAccessToken, generateRefreshToken, verifyAccessToken, verifyRefreshToken } from "./jwt.js";
 
 const API_PORT = process.env.API_PORT || 4000;
 const API_SECRET = process.env.API_SECRET || "super_secret_token_123";
@@ -22,12 +22,13 @@ startTgListener(forwardTgToVk).then(() => {
   console.error("Telegram setup failed:", err);
 });
 
-// Helper to run temp code garbage collector once an hour
+// Helper to run temp code and refresh token garbage collector once an hour
 setInterval(() => {
   try {
     dbHelper.clearExpiredTempCodes();
+    dbHelper.clearExpiredRefreshTokens();
   } catch (err) {
-    console.error("Failed to clear expired temp codes:", err);
+    console.error("Failed to clear expired temp codes or refresh tokens:", err);
   }
 }, 60 * 60 * 1000);
 
@@ -70,12 +71,17 @@ Bun.serve({
           return new Response(JSON.stringify({ error: "Invalid credentials" }), { status: 401, headers });
         }
 
-        // Generate JWT token for client session
-        const token = generateJWT({ id: user.id, username: user.username });
+        // Generate access and refresh tokens for client session
+        const accessToken = generateAccessToken({ id: user.id, username: user.username });
+        const refreshToken = generateRefreshToken({ id: user.id, username: user.username });
+
+        // Save refresh token to SQLite database
+        dbHelper.addRefreshToken(refreshToken, user.id);
 
         return new Response(JSON.stringify({
           success: true,
-          token,
+          accessToken,
+          refreshToken,
           user: { id: user.id, username: user.username }
         }), { headers });
       }
@@ -102,6 +108,43 @@ Bun.serve({
         }), { headers });
       }
 
+      // PUBLIC ROUTE: Auth token refresh
+      if (path === "/api/auth/refresh" && method === "POST") {
+        const { refreshToken } = await req.json();
+        if (!refreshToken) {
+          return new Response(JSON.stringify({ error: "Missing refresh token" }), { status: 400, headers });
+        }
+
+        // Verify refresh token cryptographically
+        const decoded = verifyRefreshToken(refreshToken);
+        if (!decoded || !decoded.id) {
+          return new Response(JSON.stringify({ error: "Invalid refresh token" }), { status: 401, headers });
+        }
+
+        // Validate token exists in database
+        const dbRecord = dbHelper.validateRefreshToken(refreshToken);
+        if (!dbRecord) {
+          return new Response(JSON.stringify({ error: "Expired or revoked refresh token" }), { status: 401, headers });
+        }
+
+        // Generate new access token
+        const accessToken = generateAccessToken({ id: decoded.id, username: decoded.username });
+
+        return new Response(JSON.stringify({
+          success: true,
+          accessToken
+        }), { headers });
+      }
+
+      // PUBLIC ROUTE: Auth logout (revokes refresh token)
+      if (path === "/api/auth/logout" && method === "POST") {
+        const { refreshToken } = await req.json();
+        if (refreshToken) {
+          dbHelper.deleteRefreshToken(refreshToken);
+        }
+        return new Response(JSON.stringify({ success: true }), { headers });
+      }
+
       // 3. MIDDLEWARE: Verify API_SECRET key or JWT user token for all other routes
       const authHeader = req.headers.get("Authorization");
       const token = authHeader && authHeader.startsWith("Bearer ") ? authHeader.substring(7) : null;
@@ -121,7 +164,7 @@ Bun.serve({
         verifiedUserId = 1; // Default fallback to first user
       } else {
         // User JWT authentication
-        const decoded = verifyJWT(token);
+        const decoded = verifyAccessToken(token);
         if (!decoded || !decoded.id) {
           return new Response(JSON.stringify({ error: "Unauthorized" }), {
             status: 401,
@@ -196,6 +239,16 @@ Bun.serve({
           return new Response(JSON.stringify({ error: "Invalid bridge ID" }), { status: 400, headers });
         }
         
+        const bridge = dbHelper.getBridge(id);
+        if (!bridge) {
+          return new Response(JSON.stringify({ error: "Bridge not found" }), { status: 404, headers });
+        }
+
+        // Verify ownership if not system access
+        if (enforcedUserId !== null && bridge.user_id !== enforcedUserId) {
+          return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers });
+        }
+
         const body = await req.json();
         const updated = dbHelper.updateBridge(id, body);
         return new Response(JSON.stringify(updated), { headers });
@@ -210,6 +263,17 @@ Bun.serve({
             headers
           });
         }
+
+        const bridge = dbHelper.getBridge(id);
+        if (!bridge) {
+          return new Response(JSON.stringify({ error: "Bridge not found" }), { status: 404, headers });
+        }
+
+        // Verify ownership if not system access
+        if (enforcedUserId !== null && bridge.user_id !== enforcedUserId) {
+          return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers });
+        }
+
         dbHelper.deleteBridge(id);
         return new Response(JSON.stringify({ success: true }), { headers });
       }

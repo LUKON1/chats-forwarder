@@ -1,25 +1,48 @@
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.API_SECRET || "super_secret_token_123";
+const API_SECRET = process.env.API_SECRET || "super_secret_token_123";
+const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || API_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || (API_SECRET + "_refresh");
 
 /**
- * Generate a JWT token containing user payload
+ * Generate a short-lived access token
  * @param {object} payload - User information (e.g. { id, username })
- * @param {string|number} [expiresIn] - Token expiration duration (default: '24h')
  * @returns {string} Signed JWT token
  */
-export function generateJWT(payload, expiresIn = "24h") {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn });
+export function generateAccessToken(payload) {
+  return jwt.sign(payload, JWT_ACCESS_SECRET, { expiresIn: "15m" });
 }
 
 /**
- * Verify a JWT token and return its decoded payload
+ * Generate a long-lived refresh token
+ * @param {object} payload - User information (e.g. { id, username })
+ * @returns {string} Signed JWT token
+ */
+export function generateRefreshToken(payload) {
+  return jwt.sign(payload, JWT_REFRESH_SECRET, { expiresIn: "7d" });
+}
+
+/**
+ * Verify access token and return its decoded payload
  * @param {string} token - Signed JWT token
  * @returns {object|null} Decoded user payload if valid, null otherwise
  */
-export function verifyJWT(token) {
+export function verifyAccessToken(token) {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, JWT_ACCESS_SECRET);
+  } catch (err) {
+    return null;
+  }
+}
+
+/**
+ * Verify refresh token and return its decoded payload
+ * @param {string} token - Signed JWT token
+ * @returns {object|null} Decoded user payload if valid, null otherwise
+ */
+export function verifyRefreshToken(token) {
+  try {
+    return jwt.verify(token, JWT_REFRESH_SECRET);
   } catch (err) {
     return null;
   }

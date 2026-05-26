@@ -50,6 +50,15 @@ db.run(`
 `);
 
 db.run(`
+  CREATE TABLE IF NOT EXISTS refresh_tokens (
+    token TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    expires_at DATETIME NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+`);
+
+db.run(`
   CREATE TABLE IF NOT EXISTS bridges (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -141,6 +150,11 @@ export const dbHelper = {
     });
   },
 
+  getBridge: (id) => {
+    const query = db.query("SELECT * FROM bridges WHERE id = $id");
+    return query.get({ $id: id });
+  },
+
   deleteBridge: (id) => {
     const query = db.query("DELETE FROM bridges WHERE id = $id");
     query.run({ $id: id });
@@ -224,6 +238,36 @@ export const dbHelper = {
 
   clearExpiredTempCodes: () => {
     db.query("DELETE FROM temp_codes WHERE expires_at < datetime('now')").run();
+  },
+
+  // Refresh Token operations
+  addRefreshToken: (token, userId) => {
+    const query = db.query(`
+      INSERT INTO refresh_tokens (token, user_id, expires_at)
+      VALUES ($token, $userId, datetime('now', '+7 days'))
+      RETURNING *
+    `);
+    return query.get({
+      $token: token,
+      $userId: userId
+    });
+  },
+
+  validateRefreshToken: (token) => {
+    const query = db.query(`
+      SELECT * FROM refresh_tokens
+      WHERE token = $token AND expires_at > datetime('now')
+    `);
+    return query.get({ $token: token });
+  },
+
+  deleteRefreshToken: (token) => {
+    const query = db.query("DELETE FROM refresh_tokens WHERE token = $token");
+    query.run({ $token: token });
+  },
+
+  clearExpiredRefreshTokens: () => {
+    db.query("DELETE FROM refresh_tokens WHERE expires_at < datetime('now')").run();
   },
 
   // Log operations
