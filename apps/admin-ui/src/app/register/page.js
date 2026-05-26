@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
 export default function Register() {
   const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
@@ -19,13 +20,24 @@ export default function Register() {
     e.preventDefault();
     setError("");
 
+    // Validate input fields
+    if (username.length < 3 || username.length > 20) {
+      setError(t("username_too_short"));
+      return;
+    }
+
+    if (password.length < 6) {
+      setError(t("password_too_short"));
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError(t("pw_mismatch"));
       return;
     }
 
     try {
-      const res = await fetch("http://localhost:4000/api/auth/register", {
+      const res = await fetch(`${API_URL}/api/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -41,10 +53,10 @@ export default function Register() {
           push("/login");
         }, 1500);
       } else {
-        setError(data.error || "Registration failed");
+        setError(data.error || t("registration_failed"));
       }
     } catch (err) {
-      setError("Server connection failed");
+      setError(t("server_connection_failed"));
     }
   };
 
@@ -90,19 +102,7 @@ export default function Register() {
               required
             />
           </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-lime-cream-300 mb-1">
-              {t("email")}
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2.5 bg-yale-blue-950 border-2 border-black text-lime-cream-50 font-mono text-sm focus:outline-none focus:border-lime-cream-400 rounded-none"
-              placeholder={t("placeholder_email")}
-              required
-            />
-          </div>
+
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-lime-cream-300 mb-1">
               {t("password")}

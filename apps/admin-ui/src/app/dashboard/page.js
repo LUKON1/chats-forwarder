@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import TelegramIcon from "@/assets/icons/TelegramIcon";
 import VkIcon from "@/assets/icons/VkIcon";
 import MessageFlowAnimation from "@/components/MessageFlowAnimation";
 import { useLanguage } from "@/context/LanguageContext";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export default function Dashboard() {
   const { push } = useRouter();
@@ -32,23 +34,30 @@ export default function Dashboard() {
   const [newRouteSource, setNewRouteSource] = useState("");
   const [newRouteTarget, setNewRouteTarget] = useState("");
   const [newRouteDirection, setNewRouteDirection] = useState("vk-to-tg");
-  const [newRouteFilters, setNewRouteFilters] = useState("");
 
-  // Validate authentication and fetch data on mount
-  useEffect(() => {
-    const loggedIn = localStorage.getItem("is_logged_in");
-    const token = localStorage.getItem("token");
-
-    if (!loggedIn || !token) {
-      push("/login");
-    } else {
-      setIsAuthenticated(true);
-      loadData();
+  /* Handle log out */
+  const handleLogout = useCallback(async () => {
+    const refreshToken = localStorage.getItem("refresh_token");
+    if (refreshToken) {
+      try {
+        await fetch(`${API_URL}/api/auth/logout`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken })
+        });
+      } catch (err) {
+        console.error("Failed to notify server about logout:", err);
+      }
     }
+    localStorage.removeItem("is_logged_in");
+    localStorage.removeItem("token");
+    localStorage.removeItem("refresh_token");
+    localStorage.removeItem("user");
+    push("/login");
   }, [push]);
 
   // Helper to fetch with automatic token refresh
-  const fetchWithAuth = async (url, options = {}) => {
+  const fetchWithAuth = useCallback(async (url, options = {}) => {
     let token = localStorage.getItem("token");
     if (!options.headers) {
       options.headers = {};
@@ -65,7 +74,7 @@ export default function Dashboard() {
       }
 
       try {
-        const refreshRes = await fetch("http://localhost:4000/api/auth/refresh", {
+        const refreshRes = await fetch(`${API_URL}/api/auth/refresh`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refreshToken })
@@ -89,18 +98,18 @@ export default function Dashboard() {
     }
 
     return res;
-  };
+  }, [handleLogout]);
 
   // Load chats and pipelines from bot engine API
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     setApiError("");
     try {
       // 1. Fetch connected chats pool
-      const chatsRes = await fetchWithAuth("http://localhost:4000/api/chats");
+      const chatsRes = await fetchWithAuth(`${API_URL}/api/chats`);
       
       // 2. Fetch forwarding pipelines (bridges)
-      const bridgesRes = await fetchWithAuth("http://localhost:4000/api/bridges");
+      const bridgesRes = await fetchWithAuth(`${API_URL}/api/bridges`);
 
       if (!chatsRes.ok || !bridgesRes.ok) {
         throw new Error("Failed to load dashboard data from API");
@@ -123,38 +132,29 @@ export default function Dashboard() {
         sourceId: r.source_chat_id,
         targetId: r.target_chat_id,
         direction: `${r.source_platform}-to-${r.target_platform}`,
-        isActive: r.is_active === 1,
-        filters: typeof r.filters === "string" ? JSON.parse(r.filters).keywords || "" : ""
+        isActive: r.is_active === 1
       }));
       setRoutes(mappedRoutes);
     } catch (err) {
       console.error(err);
-      setApiError("Could not connect to Bot API Server on port 4000");
+      setApiError(t("cannot_connect_api"));
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [fetchWithAuth, t]);
 
-  /* Handle log out */
-  const handleLogout = async () => {
-    const refreshToken = localStorage.getItem("refresh_token");
-    if (refreshToken) {
-      try {
-        await fetch("http://localhost:4000/api/auth/logout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refreshToken })
-        });
-      } catch (err) {
-        console.error("Failed to notify server about logout:", err);
-      }
+  // Validate authentication and fetch data on mount
+  useEffect(() => {
+    const loggedIn = localStorage.getItem("is_logged_in");
+    const token = localStorage.getItem("token");
+
+    if (!loggedIn || !token) {
+      push("/login");
+    } else {
+      setIsAuthenticated(true);
+      loadData();
     }
-    localStorage.removeItem("is_logged_in");
-    localStorage.removeItem("token");
-    localStorage.removeItem("refresh_token");
-    localStorage.removeItem("user");
-    push("/login");
-  };
+  }, [push, loadData]);
 
   /* Generate temporary onboarding PIN for connecting chats */
   const handleGenerateCode = async (e) => {
@@ -163,7 +163,7 @@ export default function Dashboard() {
     setGeneratingCode(true);
 
     try {
-      const res = await fetchWithAuth("http://localhost:4000/api/connect/code", {
+      const res = await fetchWithAuth(`${API_URL}/api/connect/code`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -188,7 +188,7 @@ export default function Dashboard() {
   /* Disconnect chat from pool */
   const handleDeleteChat = async (platform, chatId) => {
     try {
-      const res = await fetchWithAuth(`http://localhost:4000/api/chats/${platform}/${chatId}`, {
+      const res = await fetchWithAuth(`${API_URL}/api/chats/${platform}/${chatId}`, {
         method: "DELETE"
       });
       if (res.ok) {
@@ -208,7 +208,7 @@ export default function Dashboard() {
     if (!newRouteTitle || !newRouteSource || !newRouteTarget) return;
 
     try {
-      const res = await fetchWithAuth("http://localhost:4000/api/bridges", {
+      const res = await fetchWithAuth(`${API_URL}/api/bridges`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -219,8 +219,7 @@ export default function Dashboard() {
           source_chat_id: Number(newRouteSource),
           target_platform: newRouteDirection === "vk-to-tg" ? "tg" : "vk",
           target_chat_id: Number(newRouteTarget),
-          show_author: true,
-          filters: { keywords: newRouteFilters }
+          show_author: true
         })
       });
 
@@ -229,7 +228,6 @@ export default function Dashboard() {
         setNewRouteTitle("");
         setNewRouteSource("");
         setNewRouteTarget("");
-        setNewRouteFilters("");
         loadData();
       } else {
         const data = await res.json();
@@ -243,7 +241,7 @@ export default function Dashboard() {
   /* Toggle bridge active status */
   const handleToggleRoute = async (id, currentActive) => {
     try {
-      const res = await fetchWithAuth(`http://localhost:4000/api/bridges/${id}`, {
+      const res = await fetchWithAuth(`${API_URL}/api/bridges/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json"
@@ -266,7 +264,7 @@ export default function Dashboard() {
     const newTargetPlatform = route.direction === "vk-to-tg" ? "vk" : "tg";
 
     try {
-      const res = await fetchWithAuth(`http://localhost:4000/api/bridges/${route.id}`, {
+      const res = await fetchWithAuth(`${API_URL}/api/bridges/${route.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json"
@@ -289,7 +287,7 @@ export default function Dashboard() {
   /* Delete bridge */
   const handleDeleteRoute = async (id) => {
     try {
-      const res = await fetchWithAuth(`http://localhost:4000/api/bridges/${id}`, {
+      const res = await fetchWithAuth(`${API_URL}/api/bridges/${id}`, {
         method: "DELETE"
       });
       if (res.ok) {
@@ -303,7 +301,7 @@ export default function Dashboard() {
   if (!isAuthenticated) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-yale-blue-950 text-lime-cream-50 font-mono">
-        LOADING AUTHENTICATION STATE...
+        {t("loading_auth_state")}
       </div>
     );
   }
@@ -387,7 +385,7 @@ export default function Dashboard() {
         <div className="grow">
           {isLoading ? (
             <div className="neo-box p-12 bg-yale-blue-900 text-center font-mono text-lime-cream-300">
-              SYNCHRONIZING WITH BOT ENGINE API...
+              {t("sync_with_api")}
             </div>
           ) : (
             <>
@@ -425,7 +423,7 @@ export default function Dashboard() {
                             value={newRouteTitle}
                             onChange={(e) => setNewRouteTitle(e.target.value)}
                             className="w-full px-4 py-2.5 bg-yale-blue-950 border-2 border-black text-lime-cream-50 font-mono text-sm focus:outline-none focus:border-lime-cream-400 rounded-none"
-                            placeholder="например, VK -> Telegram"
+                            placeholder={t("placeholder_pipeline_name")}
                             required
                           />
                         </div>
@@ -442,8 +440,8 @@ export default function Dashboard() {
                             }}
                             className="w-full px-4 py-2.5 bg-yale-blue-950 border-2 border-black text-lime-cream-50 font-mono text-sm focus:outline-none focus:border-lime-cream-400 rounded-none appearance-none"
                           >
-                            <option value="vk-to-tg">VKontakte ──► Telegram</option>
-                            <option value="tg-to-vk">Telegram ──► VKontakte</option>
+                            <option value="vk-to-tg">{t("direction_vk_to_tg")}</option>
+                            <option value="tg-to-vk">{t("direction_tg_to_vk")}</option>
                           </select>
                         </div>
                       </div>
@@ -489,19 +487,6 @@ export default function Dashboard() {
                               ))}
                           </select>
                         </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-lime-cream-300 mb-2">
-                          {t("filter_keywords")}
-                        </label>
-                        <input
-                          type="text"
-                          value={newRouteFilters}
-                          onChange={(e) => setNewRouteFilters(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-yale-blue-950 border-2 border-black text-lime-cream-50 font-mono text-sm focus:outline-none focus:border-lime-cream-400 rounded-none"
-                          placeholder="например, важно, новости"
-                        />
                       </div>
 
                       <div className="flex justify-end pt-2">
@@ -550,13 +535,6 @@ export default function Dashboard() {
                                 <h3 className="text-lg font-black uppercase text-lime-cream-200">
                                   {route.title}
                                 </h3>
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                  {route.filters && (
-                                    <span className="text-[10px] font-mono uppercase bg-zinc-950 text-tropical-teal-400 px-2.5 py-0.5 border border-zinc-800">
-                                      {t("filter_keywords")}: {route.filters}
-                                    </span>
-                                  )}
-                                </div>
                               </div>
                               
                               {/* Top Controls */}
@@ -752,7 +730,7 @@ export default function Dashboard() {
                           disabled={generatingCode}
                           className="px-6 py-3 bg-lime-cream-400 text-black font-black uppercase tracking-wider border-2 border-black neo-button text-sm w-full md:w-auto"
                         >
-                          {generatingCode ? "GENERATING..." : t("generate_code_btn")}
+                          {generatingCode ? t("generating") : t("generate_code_btn")}
                         </button>
                       </form>
 

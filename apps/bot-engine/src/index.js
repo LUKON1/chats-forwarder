@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { startVkListener } from "./vk.js";
 import { startTgListener } from "./tg.js";
 import { forwardVkToTg, forwardTgToVk } from "./forwarder.js";
@@ -5,9 +6,13 @@ import { dbHelper } from "./db.js";
 import { generateAccessToken, generateRefreshToken, verifyAccessToken, verifyRefreshToken } from "./jwt.js";
 
 const API_PORT = process.env.API_PORT || 4000;
-const API_SECRET = process.env.API_SECRET || "super_secret_token_123";
+const API_SECRET = process.env.API_SECRET || (() => {
+  const generatedSecret = crypto.randomUUID();
+  console.log(`[SECURITY WARNING] API_SECRET not set in env. Generated random secret for this session: ${generatedSecret}`);
+  return generatedSecret;
+})();
 
-console.log("VK-TG Forwarder engine starting...");
+console.log("Chat Forwarder engine starting...");
 
 // Start background listeners
 startVkListener(forwardVkToTg).then(() => {
@@ -60,6 +65,11 @@ Bun.serve({
           return new Response(JSON.stringify({ error: "Missing credentials" }), { status: 400, headers });
         }
 
+        // Validate credentials length
+        if (username.length < 3 || username.length > 20 || password.length < 6) {
+          return new Response(JSON.stringify({ error: "Invalid credentials length" }), { status: 400, headers });
+        }
+
         const user = dbHelper.getUser(username);
         if (!user) {
           return new Response(JSON.stringify({ error: "Invalid credentials" }), { status: 401, headers });
@@ -91,6 +101,14 @@ Bun.serve({
         const { username, password } = await req.json();
         if (!username || !password) {
           return new Response(JSON.stringify({ error: "Missing required fields" }), { status: 400, headers });
+        }
+
+        // Validate lengths
+        if (username.length < 3 || username.length > 20) {
+          return new Response(JSON.stringify({ error: "Username must be between 3 and 20 characters long" }), { status: 400, headers });
+        }
+        if (password.length < 6) {
+          return new Response(JSON.stringify({ error: "Password must be at least 6 characters long" }), { status: 400, headers });
         }
 
         const existingUser = dbHelper.getUser(username);
@@ -200,7 +218,7 @@ Bun.serve({
       // POST /api/bridges - Create a new bridge
       if (path === "/api/bridges" && method === "POST") {
         const body = await req.json();
-        const { user_id, source_platform, source_chat_id, target_platform, target_chat_id, title, show_author, filters } = body;
+        const { user_id, source_platform, source_chat_id, target_platform, target_chat_id, title, show_author } = body;
         
         const userId = enforcedUserId !== null ? enforcedUserId : Number(user_id || 1);
 
@@ -226,8 +244,7 @@ Bun.serve({
           target_platform,
           Number(target_chat_id),
           title,
-          show_author !== false,
-          filters || {}
+          show_author !== false
         );
         return new Response(JSON.stringify(newBridge), { headers });
       }
@@ -315,20 +332,13 @@ Bun.serve({
         }
 
         // Generate 6 digit pin code
-        const code = String(Math.floor(100000 + Math.random() * 900000));
+        const code = String(crypto.randomInt(100000, 999999));
         const record = dbHelper.addTempCode(userId, platform, code);
 
         return new Response(JSON.stringify(record), { headers });
       }
 
-      // GET /api/logs - Fetch forwarding log stream
-      if (path === "/api/logs" && method === "GET") {
-        const queryUserId = url.searchParams.get("user_id") ? Number(url.searchParams.get("user_id")) : null;
-        const userId = enforcedUserId !== null ? enforcedUserId : queryUserId;
 
-        const logs = dbHelper.getLogs(userId, 50);
-        return new Response(JSON.stringify(logs), { headers });
-      }
 
       return new Response(JSON.stringify({ error: "Not Found" }), {
         status: 404,

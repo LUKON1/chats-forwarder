@@ -27,8 +27,7 @@ export default function DashboardPreview() {
       sourceId: 1, 
       targetId: 3, 
       direction: "vk-to-tg", 
-      isActive: true, 
-      filters: "dev,web" 
+      isActive: true
     },
     { 
       id: 2, 
@@ -36,8 +35,7 @@ export default function DashboardPreview() {
       sourceId: 4, 
       targetId: 2, 
       direction: "tg-to-vk", 
-      isActive: false, 
-      filters: "" 
+      isActive: false
     }
   ]);
 
@@ -124,13 +122,6 @@ export default function DashboardPreview() {
                       <h4 className="font-black text-sm uppercase text-lime-cream-200">
                         {route.title}
                       </h4>
-                      {route.filters && (
-                        <div className="mt-1">
-                          <span className="text-[9px] font-mono uppercase bg-black text-tropical-teal-400 px-2 py-0.5 border border-zinc-800">
-                            {t("filter_keywords")}: {route.filters}
-                          </span>
-                        </div>
-                      )}
                     </div>
 
                     <div className="flex space-x-2 w-full md:w-auto justify-end">

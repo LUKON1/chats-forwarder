@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -16,8 +18,19 @@ export default function Login() {
     e.preventDefault();
     setError("");
 
+    // Validate inputs
+    if (username.length < 3 || username.length > 20) {
+      setError(t("username_too_short"));
+      return;
+    }
+
+    if (password.length < 6) {
+      setError(t("password_too_short"));
+      return;
+    }
+
     try {
-      const res = await fetch("http://localhost:4000/api/auth/login", {
+      const res = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -37,7 +50,7 @@ export default function Login() {
         setError(data.error || t("invalid_credentials"));
       }
     } catch (err) {
-      setError("Server connection failed");
+      setError(t("server_connection_failed"));
     }
   };
 

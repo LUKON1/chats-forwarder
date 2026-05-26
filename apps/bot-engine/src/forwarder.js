@@ -1,15 +1,24 @@
 import { vk } from "./vk.js";
 import { bot, sendText, sendPhoto, sendMediaGroup, sendDocument, sendVoice } from "./tg.js";
 import { dbHelper } from "./db.js";
+import { mkdirSync, existsSync, unlinkSync } from "fs";
+import { join } from "path";
+import crypto from "crypto";
+
+// Temporary directory inside container for file transfers
+const TMP_DIR = "/tmp/chat-forwarder";
+if (!existsSync(TMP_DIR)) {
+  mkdirSync(TMP_DIR, { recursive: true });
+}
 
 // Buffer to accumulate Telegram media groups (albums)
 const mediaGroupBuffers = new Map();
 
-// Helper to upload buffers to VK upload servers
-async function uploadToVkServer(uploadUrl, fileBuffer, filename, fieldName = "file") {
-  const blob = new Blob([fileBuffer]);
+// Helper to upload files to VK upload servers using Bun.file
+async function uploadToVkServer(uploadUrl, filePath, filename, fieldName = "file") {
+  const file = Bun.file(filePath);
   const formData = new FormData();
-  formData.append(fieldName, blob, filename);
+  formData.append(fieldName, file, filename);
 
   const res = await fetch(uploadUrl, {
     method: "POST",
@@ -20,14 +29,19 @@ async function uploadToVkServer(uploadUrl, fileBuffer, filename, fieldName = "fi
   return res.json();
 }
 
-// Download Telegram file into Buffer
+// Download Telegram file to disk (/tmp/chat-forwarder) using Bun.write
 async function downloadTelegramFile(fileId) {
   const file = await bot.api.getFile(fileId);
   const url = `https://api.telegram.org/file/bot${process.env.TG_BOT_TOKEN}/${file.file_path}`;
   
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Download TG file error: ${res.status}`);
-  return Buffer.from(await res.arrayBuffer());
+  
+  const tempFileName = `tg_${crypto.randomUUID()}_${file.file_path.split("/").pop()}`;
+  const tempFilePath = join(TMP_DIR, tempFileName);
+  
+  await Bun.write(tempFilePath, res);
+  return tempFilePath;
 }
 
 // Name cache for VK users
@@ -151,7 +165,7 @@ async function forwardToTg(ctx, bridge) {
 
       if (!hasMedia) {
         if (msgData.text) await sendText(tgChatId, caption);
-        dbHelper.addLog(bridge.id, "vk_to_tg", "success", logText);
+        console.log(`[Forward Success] bridge=${bridge.id} direction=vk_to_tg message="${logText}"`);
         return;
       }
 
@@ -183,27 +197,30 @@ async function forwardToTg(ctx, bridge) {
         await sendVoice(tgChatId, url);
       }
 
-      dbHelper.addLog(bridge.id, "vk_to_tg", "success", logText);
+      console.log(`[Forward Success] bridge=${bridge.id} direction=vk_to_tg message="${logText}"`);
     }
     
     // B. SOURCE IS TG -> TARGET IS TG
     else if (sourcePlatform === "tg") {
-      const senderName = ctx.from.first_name + (ctx.from.last_name ? ` ${ctx.from.last_name}` : "");
+      const message = ctx.message || ctx.channelPost;
+      const senderName = ctx.from
+        ? (ctx.from.first_name + (ctx.from.last_name ? ` ${ctx.from.last_name}` : ""))
+        : (ctx.chat.title || "Telegram Channel");
+
       const prefix = bridge.show_author ? `${senderName}: ` : "";
-      const messageText = ctx.message.text || ctx.message.caption || "";
+      const messageText = message?.text || message?.caption || "";
       const caption = messageText ? `${prefix}${messageText}` : (prefix ? prefix.slice(0, -2) : "");
       logText = messageText || "[TG-to-TG copy]";
 
       // Fast-copy message on Telegram servers (no local download needed)
-      await bot.api.copyMessage(tgChatId, ctx.chat.id, ctx.message.message_id, {
+      await bot.api.copyMessage(tgChatId, ctx.chat.id, message.message_id, {
         caption: caption || undefined
       });
 
-      dbHelper.addLog(bridge.id, "tg_to_tg", "success", logText);
+      console.log(`[Forward Success] bridge=${bridge.id} direction=tg_to_tg message="${logText}"`);
     }
   } catch (err) {
-    console.error(`Forwarding to Telegram failed (${sourcePlatform}->tg):`, err);
-    dbHelper.addLog(bridge.id, `${sourcePlatform}_to_tg`, "error", logText, err.message);
+    console.error(`[Forward Error] bridge=${bridge.id} direction=${sourcePlatform}_to_tg error="${err.message}"`);
   }
 }
 
@@ -212,8 +229,9 @@ async function forwardToVk(ctx, bridge) {
   const sourcePlatform = bridge.source_platform;
 
   if (sourcePlatform === "tg") {
+    const message = ctx.message || ctx.channelPost;
     // Buffer TG media groups to avoid multiple VK posts
-    const mediaGroupId = ctx.message.media_group_id;
+    const mediaGroupId = message?.media_group_id;
     if (!mediaGroupId) {
       return processSingleTgToVk(ctx, bridge);
     }
@@ -242,42 +260,50 @@ async function forwardToVk(ctx, bridge) {
 async function processSingleTgToVk(ctx, bridge) {
   const vkPeerId = bridge.target_chat_id;
   let logText = "";
+  const tempFiles = [];
   try {
-    const hasSupportedMedia = ctx.message.photo || ctx.message.document || ctx.message.voice;
-    const messageText = ctx.message.text || ctx.message.caption || "";
+    const message = ctx.message || ctx.channelPost;
+    const hasSupportedMedia = message?.photo || message?.document || message?.voice;
+    const messageText = message?.text || message?.caption || "";
 
     if (!messageText && !hasSupportedMedia) return;
 
-    const senderName = ctx.from.first_name + (ctx.from.last_name ? ` ${ctx.from.last_name}` : "");
+    const senderName = ctx.from
+      ? (ctx.from.first_name + (ctx.from.last_name ? ` ${ctx.from.last_name}` : ""))
+      : (ctx.chat.title || "Telegram Channel");
+
     const prefix = bridge.show_author ? `${senderName}: ` : "";
     const fullText = messageText ? `${prefix}${messageText}` : (prefix ? prefix.slice(0, -2) : "");
     logText = messageText || "[Media attachment]";
 
     const attachments = [];
 
-    if (ctx.message.photo) {
-      const photo = ctx.message.photo.at(-1);
-      const buffer = await downloadTelegramFile(photo.file_id);
+    if (message.photo) {
+      const photo = message.photo.at(-1);
+      const tempPath = await downloadTelegramFile(photo.file_id);
+      tempFiles.push(tempPath);
       const server = await vk.api.photos.getMessagesUploadServer({ peer_id: vkPeerId });
-      const uploadRes = await uploadToVkServer(server.upload_url, buffer, "photo.jpg", "photo");
+      const uploadRes = await uploadToVkServer(server.upload_url, tempPath, "photo.jpg", "photo");
       const [saved] = await vk.api.photos.saveMessagesPhoto(uploadRes);
       attachments.push(`photo${saved.owner_id}_${saved.id}`);
     }
 
-    if (ctx.message.document) {
-      const doc = ctx.message.document;
-      const buffer = await downloadTelegramFile(doc.file_id);
+    if (message.document) {
+      const doc = message.document;
+      const tempPath = await downloadTelegramFile(doc.file_id);
+      tempFiles.push(tempPath);
       const server = await vk.api.docs.getMessagesUploadServer({ peer_id: vkPeerId, type: "doc" });
-      const uploadRes = await uploadToVkServer(server.upload_url, buffer, doc.file_name);
+      const uploadRes = await uploadToVkServer(server.upload_url, tempPath, doc.file_name);
       const saved = await vk.api.docs.save({ file: uploadRes.file, title: doc.file_name });
       attachments.push(`doc${saved.doc.owner_id}_${saved.doc.id}`);
     }
 
-    if (ctx.message.voice) {
-      const voice = ctx.message.voice;
-      const buffer = await downloadTelegramFile(voice.file_id);
+    if (message.voice) {
+      const voice = message.voice;
+      const tempPath = await downloadTelegramFile(voice.file_id);
+      tempFiles.push(tempPath);
       const server = await vk.api.docs.getMessagesUploadServer({ peer_id: vkPeerId, type: "audio_message" });
-      const uploadRes = await uploadToVkServer(server.upload_url, buffer, "voice.ogg");
+      const uploadRes = await uploadToVkServer(server.upload_url, tempPath, "voice.ogg");
       const saved = await vk.api.docs.save({ file: uploadRes.file, title: "Voice Message" });
       attachments.push(`doc${saved.audio_message.owner_id}_${saved.audio_message.id}`);
     }
@@ -289,10 +315,17 @@ async function processSingleTgToVk(ctx, bridge) {
       random_id: Math.floor(Math.random() * 1e15)
     });
 
-    dbHelper.addLog(bridge.id, "tg_to_vk", "success", logText);
+    console.log(`[Forward Success] bridge=${bridge.id} direction=tg_to_vk message="${logText}"`);
   } catch (err) {
-    console.error("TG -> VK forwarding failed:", err);
-    dbHelper.addLog(bridge.id, "tg_to_vk", "error", logText, err.message);
+    console.error(`[Forward Error] bridge=${bridge.id} direction=tg_to_vk error="${err.message}"`);
+  } finally {
+    for (const path of tempFiles) {
+      try {
+        if (existsSync(path)) unlinkSync(path);
+      } catch (e) {
+        console.error(`Failed to delete temp file ${path}:`, e);
+      }
+    }
   }
 }
 
@@ -305,32 +338,49 @@ async function flushTgMediaGroupToVk(mediaGroupId) {
   const { messages, bridge } = buffer;
   const vkPeerId = bridge.target_chat_id;
   let logText = "";
+  const tempFiles = [];
 
   try {
-    messages.sort((a, b) => a.message.message_id - b.message.message_id);
+    messages.sort((a, b) => {
+      const msgA = a.message || a.channelPost;
+      const msgB = b.message || b.channelPost;
+      return msgA.message_id - msgB.message_id;
+    });
 
-    const firstWithText = messages.find(m => m.message.text || m.message.caption) || messages[0];
-    const senderName = firstWithText.from.first_name + (firstWithText.from.last_name ? ` ${firstWithText.from.last_name}` : "");
+    const firstWithText = messages.find(m => {
+      const msg = m.message || m.channelPost;
+      return msg.text || msg.caption;
+    }) || messages[0];
+
+    const firstMsg = firstWithText.message || firstWithText.channelPost;
+
+    const senderName = firstWithText.from
+      ? (firstWithText.from.first_name + (firstWithText.from.last_name ? ` ${firstWithText.from.last_name}` : ""))
+      : (firstWithText.chat.title || "Telegram Channel");
+
     const prefix = bridge.show_author ? `${senderName}: ` : "";
-    const messageText = firstWithText.message.text || firstWithText.message.caption || "";
+    const messageText = firstMsg?.text || firstMsg?.caption || "";
     const fullText = messageText ? `${prefix}${messageText}` : (prefix ? prefix.slice(0, -2) : "");
     logText = messageText || "[Media Album]";
 
     const attachments = [];
 
     for (const ctx of messages) {
-      if (ctx.message.photo) {
-        const photo = ctx.message.photo.at(-1);
-        const fileBuffer = await downloadTelegramFile(photo.file_id);
+      const message = ctx.message || ctx.channelPost;
+      if (message.photo) {
+        const photo = message.photo.at(-1);
+        const tempPath = await downloadTelegramFile(photo.file_id);
+        tempFiles.push(tempPath);
         const server = await vk.api.photos.getMessagesUploadServer({ peer_id: vkPeerId });
-        const uploadRes = await uploadToVkServer(server.upload_url, fileBuffer, "photo.jpg", "photo");
+        const uploadRes = await uploadToVkServer(server.upload_url, tempPath, "photo.jpg", "photo");
         const [saved] = await vk.api.photos.saveMessagesPhoto(uploadRes);
         attachments.push(`photo${saved.owner_id}_${saved.id}`);
-      } else if (ctx.message.document) {
-        const doc = ctx.message.document;
-        const fileBuffer = await downloadTelegramFile(doc.file_id);
+      } else if (message.document) {
+        const doc = message.document;
+        const tempPath = await downloadTelegramFile(doc.file_id);
+        tempFiles.push(tempPath);
         const server = await vk.api.docs.getMessagesUploadServer({ peer_id: vkPeerId, type: "doc" });
-        const uploadRes = await uploadToVkServer(server.upload_url, fileBuffer, doc.file_name);
+        const uploadRes = await uploadToVkServer(server.upload_url, tempPath, doc.file_name);
         const saved = await vk.api.docs.save({ file: uploadRes.file, title: doc.file_name });
         attachments.push(`doc${saved.doc.owner_id}_${saved.doc.id}`);
       }
@@ -343,10 +393,17 @@ async function flushTgMediaGroupToVk(mediaGroupId) {
       random_id: Math.floor(Math.random() * 1e15)
     });
 
-    dbHelper.addLog(bridge.id, "tg_to_vk", "success", logText);
+    console.log(`[Forward Success] bridge=${bridge.id} direction=tg_to_vk message="${logText}"`);
   } catch (err) {
-    console.error("TG -> VK media album forwarding failed:", err);
-    dbHelper.addLog(bridge.id, "tg_to_vk", "error", logText, err.message);
+    console.error(`[Forward Error] bridge=${bridge.id} direction=tg_to_vk error="${err.message}"`);
+  } finally {
+    for (const path of tempFiles) {
+      try {
+        if (existsSync(path)) unlinkSync(path);
+      } catch (e) {
+        console.error(`Failed to delete temp file ${path}:`, e);
+      }
+    }
   }
 }
 
@@ -382,14 +439,12 @@ async function processVkToVk(ctx, bridge) {
       random_id: Math.floor(Math.random() * 1e15)
     });
 
-    dbHelper.addLog(bridge.id, "vk_to_vk", "success", logText);
+    console.log(`[Forward Success] bridge=${bridge.id} direction=vk_to_vk message="${logText}"`);
   } catch (err) {
-    console.error("VK -> VK forwarding failed:", err);
-    dbHelper.addLog(bridge.id, "vk_to_vk", "error", logText, err.message);
+    console.error(`[Forward Error] bridge=${bridge.id} direction=vk_to_vk error="${err.message}"`);
   }
 }
 
 // Bind listener-specific functions to the universal forwarder
 export const forwardVkToTg = forwardMessage;
 export const forwardTgToVk = forwardMessage;
-

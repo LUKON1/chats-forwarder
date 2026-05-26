@@ -58,7 +58,7 @@ db.run(`
   );
 `);
 
-db.run(`
+  db.run(`
   CREATE TABLE IF NOT EXISTS bridges (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -69,42 +69,11 @@ db.run(`
     target_platform TEXT NOT NULL,
     is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
     show_author INTEGER NOT NULL DEFAULT 1 CHECK(show_author IN (0, 1)),
-    filters TEXT NOT NULL DEFAULT '{}',
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 `);
 
-db.run(`
-  CREATE TABLE IF NOT EXISTS logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    bridge_id INTEGER,
-    direction TEXT NOT NULL,
-    status TEXT NOT NULL,
-    message_text TEXT,
-    error_message TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(bridge_id) REFERENCES bridges(id) ON DELETE SET NULL
-  );
-`);
 
-// Auto-provision default admin user (admin / admin) if users table is empty
-const setupDefaultAdmin = async () => {
-  try {
-    const userCount = db.query("SELECT COUNT(*) as count FROM users").get();
-    if (userCount.count === 0) {
-      // Use Bun's native password hashing (bcrypt)
-      const hash = await Bun.password.hash("admin");
-      db.query("INSERT INTO users (username, password_hash) VALUES ($username, $hash)").run({
-        $username: "admin",
-        $hash: hash
-      });
-      console.log("Default admin user created: admin / admin");
-    }
-  } catch (err) {
-    console.error("Failed to provision default admin:", err);
-  }
-};
-setupDefaultAdmin();
 
 // Database helper functions
 export const dbHelper = {
@@ -132,10 +101,10 @@ export const dbHelper = {
     return query.all({ $platform: platform, $chatId: Number(chatId) });
   },
 
-  addBridge: (userId, sourcePlatform, sourceChatId, targetPlatform, targetChatId, title = null, showAuthor = true, filters = {}) => {
+  addBridge: (userId, sourcePlatform, sourceChatId, targetPlatform, targetChatId, title = null, showAuthor = true) => {
     const query = db.query(`
-      INSERT INTO bridges (user_id, source_platform, source_chat_id, target_platform, target_chat_id, title, show_author, filters)
-      VALUES ($userId, $sourcePlatform, $sourceChatId, $targetPlatform, $targetChatId, $title, $showAuthor, $filters)
+      INSERT INTO bridges (user_id, source_platform, source_chat_id, target_platform, target_chat_id, title, show_author)
+      VALUES ($userId, $sourcePlatform, $sourceChatId, $targetPlatform, $targetChatId, $title, $showAuthor)
       RETURNING *
     `);
     return query.get({
@@ -145,8 +114,7 @@ export const dbHelper = {
       $targetPlatform: targetPlatform,
       $targetChatId: Number(targetChatId),
       $title: title,
-      $showAuthor: showAuthor ? 1 : 0,
-      $filters: JSON.stringify(filters)
+      $showAuthor: showAuthor ? 1 : 0
     });
   },
 
@@ -161,7 +129,11 @@ export const dbHelper = {
   },
 
   updateBridge: (id, fields) => {
-    const keys = Object.keys(fields);
+    // Whitelist allowed fields to prevent SQL injection
+    const allowedFields = ["is_active", "show_author", "title", "source_platform", "source_chat_id", "target_platform", "target_chat_id"];
+    const keys = Object.keys(fields).filter(k => allowedFields.includes(k));
+    if (keys.length === 0) return dbHelper.getBridge(id);
+
     const setClause = keys.map(k => `${k} = $${k}`).join(", ");
     const query = db.query(`UPDATE bridges SET ${setClause} WHERE id = $id RETURNING *`);
     
@@ -270,41 +242,7 @@ export const dbHelper = {
     db.query("DELETE FROM refresh_tokens WHERE expires_at < datetime('now')").run();
   },
 
-  // Log operations
-  addLog: (bridgeId, direction, status, messageText = "", errorMessage = "") => {
-    const query = db.query(`
-      INSERT INTO logs (bridge_id, direction, status, message_text, error_message)
-      VALUES ($bridgeId, $direction, $status, $messageText, $errorMessage)
-    `);
-    query.run({
-      $bridgeId: bridgeId,
-      $direction: direction,
-      $status: status,
-      $messageText: messageText ? messageText.substring(0, 1000) : null,
-      $errorMessage: errorMessage || null
-    });
-  },
 
-  getLogs: (userId = null, limit = 50) => {
-    const sql = userId !== null
-      ? `
-        SELECT l.*, b.source_platform, b.source_chat_id, b.target_platform, b.target_chat_id, b.title as bridge_title
-        FROM logs l
-        JOIN bridges b ON l.bridge_id = b.id
-        WHERE b.user_id = $userId
-        ORDER BY l.created_at DESC
-        LIMIT $limit
-      `
-      : `
-        SELECT l.*, b.source_platform, b.source_chat_id, b.target_platform, b.target_chat_id, b.title as bridge_title
-        FROM logs l
-        LEFT JOIN bridges b ON l.bridge_id = b.id
-        ORDER BY l.created_at DESC
-        LIMIT $limit
-      `;
-    const query = db.query(sql);
-    return userId !== null ? query.all({ $userId: userId, $limit: limit }) : query.all({ $limit: limit });
-  }
 };
 
 export default db;

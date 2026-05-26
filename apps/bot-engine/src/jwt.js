@@ -1,8 +1,9 @@
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
-const API_SECRET = process.env.API_SECRET || "super_secret_token_123";
-const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || API_SECRET;
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || (API_SECRET + "_refresh");
+const API_SECRET = process.env.API_SECRET;
+const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || API_SECRET || crypto.randomBytes(32).toString("hex");
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || (API_SECRET ? (API_SECRET + "_refresh") : crypto.randomBytes(32).toString("hex"));
 
 /**
  * Generate a short-lived access token

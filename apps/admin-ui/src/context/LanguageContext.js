@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
 
 const LanguageContext = createContext();
 
@@ -8,7 +8,7 @@ const translations = {
   ru: {
     // Landing
     logo: "CF",
-    title: "CHAT FORWARDER",
+    title: "Chat Forwarder",
     signin: "Войти",
     signup: "Регистрация",
     smm_automation: "Автоматизация SMM",
@@ -47,6 +47,8 @@ const translations = {
     invalid_credentials: "Неверное имя пользователя или пароль",
     placeholder_username: "например, admin",
     placeholder_email: "name@domain.com",
+    server_connection_failed: "Ошибка соединения с сервером",
+    registration_failed: "Ошибка регистрации пользователя",
     
     // Dashboard
     logout: "Выйти",
@@ -63,8 +65,6 @@ const translations = {
     target_chat: "Целевой чат",
     choose_source: "-- Выберите исходный чат --",
     choose_target: "-- Выберите целевой чат --",
-    delay_seconds: "Задержка пересылки (в секундах)",
-    filter_keywords: "Ключевые слова для фильтрации (через запятую)",
     save_pipeline: "Сохранить маршрут",
     no_pipelines: "Нет настроенных маршрутов",
     no_pipelines_desc: "Настройте путь пересылки, чтобы связать группы VKontakte и каналы Telegram в реальном времени.",
@@ -86,14 +86,39 @@ const translations = {
     your_code: "Ваш пин-код подключения",
     code_expires: "Код действителен в течение 10 минут",
     select_platform_code: "Выберите платформу для генерации кода",
-    placeholder_chat_name: "например, Мой Telegram-канал",
-    placeholder_id: "например, @channelname",
-    footer_panel: "Панель управления Chat Forwarder &bull; Сессия активна &bull; Соединение защищено"
+    footer_panel: "Панель управления Chat Forwarder &bull; Сессия активна &bull; Соединение защищено",
+
+    // Added/Missing translations
+    loading_auth_state: "ПРОВЕРКА АВТОРИЗАЦИИ...",
+    cannot_connect_api: "Не удалось подключиться к серверу API бота на порту 4000",
+    sync_with_api: "СИНХРОНИЗАЦИЯ С СЕРВЕРОМ API...",
+    placeholder_pipeline_name: "например, VK -> Telegram",
+    direction_vk_to_tg: "VKontakte ──► Telegram",
+    direction_tg_to_vk: "Telegram ──► VKontakte",
+    generating: "ГЕНЕРАЦИЯ...",
+    username_too_short: "Имя пользователя должно быть от 3 до 20 символов",
+    password_too_short: "Пароль должен быть не менее 6 символов",
+
+    // How to Start translations
+    how_to_start: "Как начать",
+    docs_back_to_landing: "На главную",
+    docs_intro_title: "Инструкция по быстрому старту",
+    docs_intro_sub: "Следуйте этим простым шагам, чтобы настроить автоматическую пересылку сообщений.",
+    docs_step1_title: "Шаг 1. Регистрация нового аккаунта",
+    docs_step1_desc: "Вам необходимо зарегистрировать новый аккаунт на странице Регистрации. Используйте имя пользователя и надежный пароль.",
+    docs_step2_title: "Шаг 2. Создание пин-кода подключения",
+    docs_step2_desc: "Войдите в панель управления, откройте вкладку 'Пул чатов' и нажмите 'Сгенерировать пин-код подключения'. Выберите платформу (VK или Telegram). Этот код связывает ваши чаты с вашей панелью.",
+    docs_step3_title: "Шаг 3. Подключение VKontakte",
+    docs_step3_desc: "Чтобы подключить беседу или группу VKontakte, добавьте туда бота сообщества и отправьте текстовую команду '/connect <код>'. Бот подтвердит успешное подключение и чат появится в панели.",
+    docs_step4_title: "Шаг 4. Подключение Telegram (группы и каналы)",
+    docs_step4_desc: "Добавьте Telegram-бота в вашу группу или канал в качестве Администратора с правами на публикацию сообщений. Затем отправьте сообщение (или опубликуйте пост в канале): '/connect <код>'. Канал будет привязан к системе.",
+    docs_step5_title: "Шаг 5. Настройка моста (маршрута)",
+    docs_step5_desc: "Вернитесь во вкладку 'Маршруты' в панели управления, нажмите '+ Создать маршрут', введите имя маршрута, выберите направление, исходный чат-источник и целевой чат-получатель. Мост автоматически начнет пересылку!",
   },
   en: {
     // Landing
     logo: "CF",
-    title: "CHAT FORWARDER",
+    title: "Chat Forwarder",
     signin: "Sign In",
     signup: "Join Free",
     smm_automation: "SMM Automation",
@@ -132,6 +157,8 @@ const translations = {
     invalid_credentials: "Invalid username or password",
     placeholder_username: "e.g. admin",
     placeholder_email: "name@domain.com",
+    server_connection_failed: "Server connection failed",
+    registration_failed: "User registration failed",
     
     // Dashboard
     logout: "Log Out",
@@ -148,8 +175,6 @@ const translations = {
     target_chat: "Target Chat",
     choose_source: "-- Choose source chat --",
     choose_target: "-- Choose target chat --",
-    delay_seconds: "Forwarding Delay (Seconds)",
-    filter_keywords: "Filter Keywords (Comma separated)",
     save_pipeline: "Save Pipeline",
     no_pipelines: "No pipelines configured",
     no_pipelines_desc: "Configure a forwarding route to bridge VKontakte groups with Telegram channels in real-time.",
@@ -171,9 +196,34 @@ const translations = {
     your_code: "Your Connection Pin-Code",
     code_expires: "Code is valid for 10 minutes",
     select_platform_code: "Select platform to generate code",
-    placeholder_chat_name: "e.g. My Telegram Channel",
-    placeholder_id: "e.g. @channelname",
-    footer_panel: "Chat Forwarder Panel &bull; Admin Active &bull; Connection secure"
+    footer_panel: "Chat Forwarder Panel &bull; Admin Active &bull; Connection secure",
+
+    // Added/Missing translations
+    loading_auth_state: "LOADING AUTHENTICATION STATE...",
+    cannot_connect_api: "Could not connect to Bot API Server on port 4000",
+    sync_with_api: "SYNCHRONIZING WITH BOT ENGINE API...",
+    placeholder_pipeline_name: "e.g. VK -> Telegram",
+    direction_vk_to_tg: "VKontakte ──► Telegram",
+    direction_tg_to_vk: "Telegram ──► VKontakte",
+    generating: "GENERATING...",
+    username_too_short: "Username must be between 3 and 20 characters",
+    password_too_short: "Password must be at least 6 characters",
+
+    // How to Start translations
+    how_to_start: "How to Start",
+    docs_back_to_landing: "Back to Home",
+    docs_intro_title: "Quick Start Guide",
+    docs_intro_sub: "Follow these simple steps to configure real-time message forwarding.",
+    docs_step1_title: "Step 1. Register a New Account",
+    docs_step1_desc: "You must register a new account on the Join page. Choose a username and a strong password.",
+    docs_step2_title: "Step 2. Generate a Connection Pin-Code",
+    docs_step2_desc: "Log in to the dashboard, open the 'Chats Pool' tab, and click 'Generate Connection Pin-Code'. Select the platform (VK or Telegram). This code links your chats to your account.",
+    docs_step3_title: "Step 3. Connect VKontakte",
+    docs_step3_desc: "To connect a VKontakte conversation or group, add the community bot to it and send a message containing '/connect <code>'. The bot will reply with a confirmation, and the chat will instantly appear in your dashboard.",
+    docs_step4_title: "Step 4. Connect Telegram (Groups & Channels)",
+    docs_step4_desc: "Add the Telegram bot to your group or channel as an Administrator with posting privileges. Then publish a message/post with '/connect <code>'. The chat/channel will be connected successfully.",
+    docs_step5_title: "Step 5. Configure the Forwarding Route",
+    docs_step5_desc: "Go back to the 'Routes' tab in the dashboard, click '+ Create Route', enter a title, choose the direction, select the source chat and the target destination. The bridge will instantly start forwarding!",
   }
 };
 
@@ -187,17 +237,19 @@ export function LanguageProvider({ children }) {
     }
   }, []);
 
-  const changeLocale = (newLocale) => {
+  const changeLocale = useCallback((newLocale) => {
     setLocale(newLocale);
     localStorage.setItem("locale", newLocale);
-  };
+  }, []);
 
-  const t = (key) => {
+  const t = useCallback((key) => {
     return translations[locale]?.[key] || translations["ru"]?.[key] || key;
-  };
+  }, [locale]);
+
+  const value = useMemo(() => ({ locale, t, changeLocale }), [locale, t, changeLocale]);
 
   return (
-    <LanguageContext.Provider value={{ locale, t, changeLocale }}>
+    <LanguageContext.Provider value={value}>
       {children}
     </LanguageContext.Provider>
   );

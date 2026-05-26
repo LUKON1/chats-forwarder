@@ -43,6 +43,12 @@ export default function Home() {
             </div>
 
             <Link 
+              href="/how-to-start" 
+              className="px-4 py-2 bg-yale-blue-900 border-2 border-black text-sm font-bold uppercase tracking-wider neo-button text-lime-cream-200"
+            >
+              {t("how_to_start")}
+            </Link>
+            <Link 
               href="/login" 
               className="px-4 py-2 bg-yale-blue-900 border-2 border-black text-sm font-bold uppercase tracking-wider neo-button text-lime-cream-200"
             >

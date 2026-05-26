@@ -9,17 +9,27 @@ if (!TG_BOT_TOKEN) {
   process.exit(1);
 }
 
+// Temporary directory inside container for file transfers
+const TMP_DIR = "/tmp/chat-forwarder";
+if (!existsSync(TMP_DIR)) {
+  mkdirSync(TMP_DIR, { recursive: true });
+}
+
 // Generate proxy agent for Telegram API
 const agent = getProxyAgent("api.telegram.org");
 const botConfig = agent ? { client: { baseFetchConfig: { agent } } } : {};
 export const bot = new Bot(TG_BOT_TOKEN, botConfig);
 
-// Helper to download remote files (VK links) into buffer for Telegram delivery
-async function fetchBuffer(url) {
-  // Bun's native fetch handles HTTP_PROXY/HTTPS_PROXY env variables automatically
+// Download VK file to disk (/tmp/vk-tg-forwarder) using Bun.write
+async function downloadVkFileToDisk(url, filename) {
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`fetchBuffer failed: ${res.status} ${url}`);
-  return Buffer.from(await res.arrayBuffer());
+  if (!res.ok) throw new Error(`fetch failed: ${res.status} ${url}`);
+  
+  const tempFileName = `vk_${crypto.randomUUID()}_${filename}`;
+  const tempFilePath = join(TMP_DIR, tempFileName);
+  
+  await Bun.write(tempFilePath, res);
+  return tempFilePath;
 }
 
 // Telegram sending helpers (VK -> TG)
@@ -39,27 +49,39 @@ export function sendMediaGroup(chatId, urls, caption) {
 }
 
 export async function sendDocument(chatId, url, filename, caption) {
-  const buffer = await fetchBuffer(url);
-  const file = new InputFile(buffer, filename);
-  return bot.api.sendDocument(chatId, file, caption ? { caption, parse_mode: "HTML" } : {});
+  const tempPath = await downloadVkFileToDisk(url, filename);
+  try {
+    const file = new InputFile(tempPath, filename);
+    return await bot.api.sendDocument(chatId, file, caption ? { caption, parse_mode: "HTML" } : {});
+  } finally {
+    if (existsSync(tempPath)) unlinkSync(tempPath);
+  }
 }
 
 export async function sendVoice(chatId, url) {
-  const buffer = await fetchBuffer(url);
-  return bot.api.sendVoice(chatId, new InputFile(buffer, "voice.ogg"));
+  const tempPath = await downloadVkFileToDisk(url, "voice.ogg");
+  try {
+    const file = new InputFile(tempPath, "voice.ogg");
+    return await bot.api.sendVoice(chatId, file);
+  } finally {
+    if (existsSync(tempPath)) unlinkSync(tempPath);
+  }
 }
 
-// Start Telegram listener for forwarding TG -> VK
+// Start Telegram listener for forwarding TG -> VK (both messages and channel posts)
 export async function startTgListener(forwardHandler) {
   let logCount = 0;
 
-  // Listen to any message (text, photos, documents, etc.)
-  bot.on("message", async (ctx) => {
+  // Listen to any message (text, photos, documents, etc.) in chats, groups, and channels
+  bot.on(["message", "channel_post"], async (ctx) => {
     try {
       const chatId = ctx.chat.id;
-      const text = ctx.message.text || "";
+      const message = ctx.message || ctx.channelPost;
+      if (!message) return;
 
-      // Skip updates from other bots
+      const text = message.text || message.caption || "";
+
+      // Skip updates from other bots (only applies if we have sender info)
       if (ctx.from?.is_bot) return;
 
       // 1. Handle connect pin-code onboarding command
@@ -68,18 +90,30 @@ export async function startTgListener(forwardHandler) {
         const code = parts[1]?.trim();
 
         if (!code) {
-          await ctx.reply("Пожалуйста, укажите пин-код подключения. Пример: /connect 123456");
+          try {
+            await ctx.reply("Пожалуйста, укажите пин-код подключения. Пример: /connect 123456");
+          } catch (err) {
+            console.error("Failed to send command instructions:", err);
+          }
           return;
         }
 
         const validation = dbHelper.validateTempCode(code, "tg");
         if (validation) {
-          const chatTitle = ctx.chat.title || ctx.chat.first_name || "Telegram Chat";
+          const chatTitle = ctx.chat.title || ctx.from?.first_name || "Telegram Chat";
           dbHelper.addConnectedChat(validation.user_id, "tg", chatId, chatTitle);
-          await ctx.reply(`Чат "${chatTitle}" успешно подключен к панели управления!`);
+          try {
+            await ctx.reply(`Чат "${chatTitle}" успешно подключен к панели управления!`);
+          } catch (err) {
+            console.error("Failed to send connection success reply:", err);
+          }
           console.log(`Telegram Chat connected: userId=${validation.user_id} chatId=${chatId} title=${chatTitle}`);
         } else {
-          await ctx.reply("Неверный или истекший пин-код подключения.");
+          try {
+            await ctx.reply("Неверный или истекший пин-код подключения.");
+          } catch (err) {
+            console.error("Failed to send connection fail reply:", err);
+          }
         }
         return;
       }

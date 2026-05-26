@@ -1,5 +1,5 @@
 {
-  "name": "vk-tg-forwarder-monorepo",
+  "name": "chat-forwarder-monorepo",
   "private": true,
   "workspaces": [
     "apps/*"
@@ -7,8 +7,8 @@
   "scripts": {
     "dev:bot": "bun --filter bot-engine dev",
     "start:bot": "bun --filter bot-engine start",
-    "dev:ui": "bun --filter vk-tg-admin-ui dev",
-    "start:ui": "bun --filter vk-tg-admin-ui start",
+    "dev:ui": "bun --filter chat-forwarder-admin-ui dev",
+    "start:ui": "bun --filter chat-forwarder-admin-ui start",
     "dev": "bun run dev:bot & bun run dev:ui"
   }
 }
