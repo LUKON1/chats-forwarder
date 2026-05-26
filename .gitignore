@@ -43,3 +43,10 @@ bun.lockb
 # Test Coverage
 coverage/
 .vitest_cache/
+
+# Next.js build output
+.next/
+apps/admin-ui/.next/
+
+# SQLite temporary/journal files
+*.sqlite-journal

@@ -1,10 +1,36 @@
-node_modules
+# Dependency directories
+node_modules/
 
-.git
+# Git and editor configuration
+.git/
 .gitignore
+.idea/
+.vscode/
+.cursor/
+.agents/
+.continue/
+
+# Local environment and tokens
 .env
-.idea
-.vscode
+.env.*
+.tokens.json
+
+# Build outputs
+.next/
+apps/admin-ui/.next/
+
+# Databases and data storage
+data/
+*.sqlite
+*.sqlite-journal
+
+# Logs
+*.log
+logs/
+
+# Docker build configs
 Dockerfile
 docker-compose.yml
+
+# Documentation
 README.md

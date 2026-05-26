@@ -66,16 +66,14 @@ export async function startVkListener(forwardHandler) {
         return;
       }
 
-      // Find active bridge in DB for this VK peer ID
-      const bridge = dbHelper.getBridgeByVk(ctx.peerId);
+      // Dynamic routing to multiple targets (VK -> TG, VK -> VK, etc.)
+      const activeBridges = dbHelper.getBridgesBySource("vk", ctx.peerId);
       
       if (logCount < 5) {
-        console.log(`[VK Message] peerId=${ctx.peerId} hasActiveBridge=${!!bridge}`);
+        console.log(`[VK Message] peerId=${ctx.peerId} hasActiveBridge=${activeBridges.length > 0}`);
         logCount++;
       }
 
-      // 2. Dynamic routing to multiple targets (VK -> TG, VK -> VK, etc.)
-      const activeBridges = dbHelper.getBridgesBySource("vk", ctx.peerId);
       for (const bridge of activeBridges) {
         await forwardHandler(ctx, bridge);
       }

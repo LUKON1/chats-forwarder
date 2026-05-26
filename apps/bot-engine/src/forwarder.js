@@ -388,3 +388,8 @@ async function processVkToVk(ctx, bridge) {
     dbHelper.addLog(bridge.id, "vk_to_vk", "error", logText, err.message);
   }
 }
+
+// Bind listener-specific functions to the universal forwarder
+export const forwardVkToTg = forwardMessage;
+export const forwardTgToVk = forwardMessage;
+

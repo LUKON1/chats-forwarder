@@ -83,16 +83,14 @@ export async function startTgListener(forwardHandler) {
         }
         return;
       }
-
-      const bridge = dbHelper.getBridgeByTg(chatId);
+      // Dynamic routing to multiple targets (TG -> VK, TG -> TG, etc.)
+      const activeBridges = dbHelper.getBridgesBySource("tg", chatId);
 
       if (logCount < 5) {
-        console.log(`[TG Message] chatId=${chatId} hasActiveBridge=${!!bridge}`);
+        console.log(`[TG Message] chatId=${chatId} hasActiveBridge=${activeBridges.length > 0}`);
         logCount++;
       }
 
-      // 2. Dynamic routing to multiple targets (TG -> VK, TG -> TG, etc.)
-      const activeBridges = dbHelper.getBridgesBySource("tg", chatId);
       for (const bridge of activeBridges) {
         await forwardHandler(ctx, bridge);
       }

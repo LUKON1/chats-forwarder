@@ -6,6 +6,9 @@
   ],
   "scripts": {
     "dev:bot": "bun --filter bot-engine dev",
-    "start:bot": "bun --filter bot-engine start"
+    "start:bot": "bun --filter bot-engine start",
+    "dev:ui": "bun --filter vk-tg-admin-ui dev",
+    "start:ui": "bun --filter vk-tg-admin-ui start",
+    "dev": "bun run dev:bot & bun run dev:ui"
   }
 }

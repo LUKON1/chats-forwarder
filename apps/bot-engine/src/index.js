@@ -2,6 +2,7 @@ import { startVkListener } from "./vk.js";
 import { startTgListener } from "./tg.js";
 import { forwardVkToTg, forwardTgToVk } from "./forwarder.js";
 import { dbHelper } from "./db.js";
+import { generateJWT, verifyJWT } from "./jwt.js";
 
 const API_PORT = process.env.API_PORT || 4000;
 const API_SECRET = process.env.API_SECRET || "super_secret_token_123";
@@ -51,7 +52,7 @@ Bun.serve({
     }
 
     try {
-      // 1. PUBLIC ROUTE: Auth login (using Bun.password)
+      // 1. PUBLIC ROUTE: Auth login (using Bun.password + JWT generation)
       if (path === "/api/auth/login" && method === "POST") {
         const { username, password } = await req.json();
         if (!username || !password) {
@@ -69,23 +70,69 @@ Bun.serve({
           return new Response(JSON.stringify({ error: "Invalid credentials" }), { status: 401, headers });
         }
 
-        // Return user data (Next.js will issue its own JWT session)
+        // Generate JWT token for client session
+        const token = generateJWT({ id: user.id, username: user.username });
+
         return new Response(JSON.stringify({
           success: true,
+          token,
           user: { id: user.id, username: user.username }
         }), { headers });
       }
 
-      // 2. MIDDLEWARE: Verify API_SECRET bearer token for all other routes
+      // 2. PUBLIC ROUTE: Auth register (using Bun.password)
+      if (path === "/api/auth/register" && method === "POST") {
+        const { username, password } = await req.json();
+        if (!username || !password) {
+          return new Response(JSON.stringify({ error: "Missing required fields" }), { status: 400, headers });
+        }
+
+        const existingUser = dbHelper.getUser(username);
+        if (existingUser) {
+          return new Response(JSON.stringify({ error: "Username already taken" }), { status: 409, headers });
+        }
+
+        // Hash password using Bun native API (bcrypt)
+        const passwordHash = await Bun.password.hash(password);
+        const newUser = dbHelper.addUser(username, passwordHash);
+
+        return new Response(JSON.stringify({
+          success: true,
+          user: { id: newUser.id, username: newUser.username }
+        }), { headers });
+      }
+
+      // 3. MIDDLEWARE: Verify API_SECRET key or JWT user token for all other routes
       const authHeader = req.headers.get("Authorization");
       const token = authHeader && authHeader.startsWith("Bearer ") ? authHeader.substring(7) : null;
 
-      if (!token || token !== API_SECRET) {
+      if (!token) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
           status: 401,
           headers
         });
       }
+
+      let verifiedUserId = null;
+      const isSystemAccess = token === API_SECRET;
+
+      if (isSystemAccess) {
+        // System access (e.g. CLI or trusted automation)
+        verifiedUserId = 1; // Default fallback to first user
+      } else {
+        // User JWT authentication
+        const decoded = verifyJWT(token);
+        if (!decoded || !decoded.id) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), {
+            status: 401,
+            headers
+          });
+        }
+        verifiedUserId = decoded.id;
+      }
+
+      // Enforce the authenticated userId for isolation (system bypass allowed)
+      const enforcedUserId = isSystemAccess ? null : verifiedUserId;
 
       // --- PROTECTED ROUTES ---
 
@@ -100,7 +147,9 @@ Bun.serve({
 
       // GET /api/bridges - List user's bridges
       if (path === "/api/bridges" && method === "GET") {
-        const userId = Number(url.searchParams.get("user_id") || 1);
+        const queryUserId = Number(url.searchParams.get("user_id") || 1);
+        const userId = enforcedUserId !== null ? enforcedUserId : queryUserId;
+        
         const bridges = dbHelper.getBridges(userId);
         return new Response(JSON.stringify(bridges), { headers });
       }
@@ -110,7 +159,9 @@ Bun.serve({
         const body = await req.json();
         const { user_id, source_platform, source_chat_id, target_platform, target_chat_id, title, show_author, filters } = body;
         
-        if (!user_id || !source_platform || !source_chat_id || !target_platform || !target_chat_id) {
+        const userId = enforcedUserId !== null ? enforcedUserId : Number(user_id || 1);
+
+        if (!source_platform || !source_chat_id || !target_platform || !target_chat_id) {
           return new Response(JSON.stringify({ error: "Missing required fields" }), {
             status: 400,
             headers
@@ -126,7 +177,7 @@ Bun.serve({
         }
 
         const newBridge = dbHelper.addBridge(
-          Number(user_id),
+          userId,
           source_platform,
           Number(source_chat_id),
           target_platform,
@@ -165,7 +216,9 @@ Bun.serve({
 
       // GET /api/chats - Get user's connected chats
       if (path === "/api/chats" && method === "GET") {
-        const userId = Number(url.searchParams.get("user_id") || 1);
+        const queryUserId = Number(url.searchParams.get("user_id") || 1);
+        const userId = enforcedUserId !== null ? enforcedUserId : queryUserId;
+
         const chats = dbHelper.getConnectedChats(userId);
         return new Response(JSON.stringify(chats), { headers });
       }
@@ -175,7 +228,8 @@ Bun.serve({
         const parts = path.split("/");
         const chatId = Number(parts.pop());
         const platform = parts.pop();
-        const userId = Number(url.searchParams.get("user_id") || 1);
+        const queryUserId = Number(url.searchParams.get("user_id") || 1);
+        const userId = enforcedUserId !== null ? enforcedUserId : queryUserId;
 
         if (!platform || !chatId || isNaN(chatId)) {
           return new Response(JSON.stringify({ error: "Invalid request parameters" }), { status: 400, headers });
@@ -189,21 +243,26 @@ Bun.serve({
       if (path === "/api/connect/code" && method === "POST") {
         const body = await req.json();
         const { user_id, platform } = body;
+        
+        const userId = enforcedUserId !== null ? enforcedUserId : Number(user_id || 1);
 
-        if (!user_id || !platform || !["vk", "tg"].includes(platform)) {
+        if (!platform || !["vk", "tg"].includes(platform)) {
           return new Response(JSON.stringify({ error: "Missing or invalid parameters" }), { status: 400, headers });
         }
 
         // Generate 6 digit pin code
         const code = String(Math.floor(100000 + Math.random() * 900000));
-        const record = dbHelper.addTempCode(Number(user_id), platform, code);
+        const record = dbHelper.addTempCode(userId, platform, code);
 
         return new Response(JSON.stringify(record), { headers });
       }
 
       // GET /api/logs - Fetch forwarding log stream
       if (path === "/api/logs" && method === "GET") {
-        const logs = dbHelper.getLogs(50);
+        const queryUserId = url.searchParams.get("user_id") ? Number(url.searchParams.get("user_id")) : null;
+        const userId = enforcedUserId !== null ? enforcedUserId : queryUserId;
+
+        const logs = dbHelper.getLogs(userId, 50);
         return new Response(JSON.stringify(logs), { headers });
       }
 

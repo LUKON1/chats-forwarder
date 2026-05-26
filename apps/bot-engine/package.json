@@ -10,6 +10,7 @@
   "dependencies": {
     "grammy": "1.36.1",
     "https-proxy-agent": "9.0.0",
+    "jsonwebtoken": "^9.0.3",
     "socks-proxy-agent": "10.0.0",
     "vk-io": "4.10.1"
   }

@@ -104,6 +104,11 @@ export const dbHelper = {
     return db.query("SELECT * FROM users WHERE username = $username").get({ $username: username });
   },
 
+  addUser: (username, passwordHash) => {
+    const query = db.query("INSERT INTO users (username, password_hash) VALUES ($username, $hash) RETURNING id, username");
+    return query.get({ $username: username, $hash: passwordHash });
+  },
+
   // Bridge operations
   getBridges: (userId) => {
     const query = db.query("SELECT * FROM bridges WHERE user_id = $userId");
@@ -236,15 +241,25 @@ export const dbHelper = {
     });
   },
 
-  getLogs: (limit = 50) => {
-    const query = db.query(`
-      SELECT l.*, b.source_platform, b.source_chat_id, b.target_platform, b.target_chat_id, b.title as bridge_title
-      FROM logs l
-      LEFT JOIN bridges b ON l.bridge_id = b.id
-      ORDER BY l.created_at DESC
-      LIMIT $limit
-    `);
-    return query.all({ $limit: limit });
+  getLogs: (userId = null, limit = 50) => {
+    const sql = userId !== null
+      ? `
+        SELECT l.*, b.source_platform, b.source_chat_id, b.target_platform, b.target_chat_id, b.title as bridge_title
+        FROM logs l
+        JOIN bridges b ON l.bridge_id = b.id
+        WHERE b.user_id = $userId
+        ORDER BY l.created_at DESC
+        LIMIT $limit
+      `
+      : `
+        SELECT l.*, b.source_platform, b.source_chat_id, b.target_platform, b.target_chat_id, b.title as bridge_title
+        FROM logs l
+        LEFT JOIN bridges b ON l.bridge_id = b.id
+        ORDER BY l.created_at DESC
+        LIMIT $limit
+      `;
+    const query = db.query(sql);
+    return userId !== null ? query.all({ $userId: userId, $limit: limit }) : query.all({ $limit: limit });
   }
 };
 
