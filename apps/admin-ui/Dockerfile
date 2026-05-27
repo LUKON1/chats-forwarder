@@ -3,17 +3,14 @@ WORKDIR /app
 
 # Install dependencies
 FROM base AS installer
-# Copy root configuration and workspace configs
 COPY package.json bun.lock ./
 COPY apps/admin-ui/package.json ./apps/admin-ui/
 COPY apps/bot-engine/package.json ./apps/bot-engine/
-# Install dependencies for the entire monorepo
 RUN bun install
 
 # Build the app
 FROM base AS builder
-COPY --from=installer /app/node_modules ./node_modules
-COPY package.json bun.lock ./
+COPY --from=installer /app ./
 COPY apps/admin-ui ./apps/admin-ui
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED=1
