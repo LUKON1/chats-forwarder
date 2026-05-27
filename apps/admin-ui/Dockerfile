@@ -8,7 +8,7 @@ COPY package.json bun.lock ./
 COPY apps/admin-ui/package.json ./apps/admin-ui/
 COPY apps/bot-engine/package.json ./apps/bot-engine/
 # Install dependencies for the entire monorepo
-RUN bun install --frozen-lockfile
+RUN bun install
 
 # Build the app
 FROM base AS builder

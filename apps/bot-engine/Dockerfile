@@ -3,20 +3,16 @@ WORKDIR /app
 
 # Install dependencies
 FROM base AS installer
-# Copy root configuration and workspace configs
-COPY package.json bun.lock ./
-COPY apps/admin-ui/package.json ./apps/admin-ui/
 COPY apps/bot-engine/package.json ./apps/bot-engine/
-# Install production dependencies for the entire monorepo
-RUN bun install --production
+RUN cd apps/bot-engine && bun install --production --no-frozen-lockfile
 
 # Production runner
 FROM base AS runner
 ENV NODE_ENV=production
 
-# Copy installed dependencies and source code
-COPY --from=installer --chown=bun:bun /app/node_modules ./node_modules
+# Copy source code and pre-installed node_modules
 COPY --chown=bun:bun apps/bot-engine ./apps/bot-engine
+COPY --from=installer --chown=bun:bun /app/apps/bot-engine/node_modules ./apps/bot-engine/node_modules
 
 # Create database directory with correct permissions for SQLite
 RUN mkdir -p /app/apps/bot-engine/data && chown -R bun:bun /app/apps/bot-engine/data
