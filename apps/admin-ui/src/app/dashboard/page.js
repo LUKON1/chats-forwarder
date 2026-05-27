@@ -7,7 +7,7 @@ import VkIcon from "@/assets/icons/VkIcon";
 import MessageFlowAnimation from "@/components/MessageFlowAnimation";
 import { useLanguage } from "@/context/LanguageContext";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const API_URL = typeof process.env.NEXT_PUBLIC_API_URL === "string" ? process.env.NEXT_PUBLIC_API_URL : "http://localhost:4000";
 
 export default function Dashboard() {
   const { push } = useRouter();

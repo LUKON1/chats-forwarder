@@ -15,6 +15,7 @@ COPY apps/admin-ui ./apps/admin-ui
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+ENV NEXT_PUBLIC_API_URL=""
 RUN cd apps/admin-ui && bun run build
 
 # Production runner
