@@ -1,9 +1,10 @@
 import { vk } from "./vk.js";
-import { bot, sendText, sendPhoto, sendMediaGroup, sendDocument, sendVoice } from "./tg.js";
+import { bot, sendText, sendPhoto, sendMediaGroup, sendDocument, sendVoice, agent } from "./tg.js";
 import { dbHelper } from "./db.js";
 import { mkdirSync, existsSync, unlinkSync } from "fs";
 import { join } from "path";
 import crypto from "crypto";
+import nodeFetch from "node-fetch";
 
 // Temporary directory inside container for file transfers
 const TMP_DIR = "/tmp/chat-forwarder";
@@ -34,7 +35,8 @@ async function downloadTelegramFile(fileId) {
   const file = await bot.api.getFile(fileId);
   const url = `https://api.telegram.org/file/bot${process.env.TG_BOT_TOKEN}/${file.file_path}`;
   
-  const res = await fetch(url);
+  const fetchOptions = agent ? { agent } : {};
+  const res = await nodeFetch(url, fetchOptions);
   if (!res.ok) throw new Error(`Download TG file error: ${res.status}`);
   
   const tempFileName = `tg_${crypto.randomUUID()}_${file.file_path.split("/").pop()}`;

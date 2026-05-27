@@ -2,6 +2,7 @@ import { Bot, InputFile, InputMediaBuilder } from "grammy";
 import { existsSync, mkdirSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import crypto from "node:crypto";
+import nodeFetch from "node-fetch";
 import { getProxyAgent } from "./proxy.js";
 import { dbHelper } from "./db.js";
 
@@ -19,13 +20,16 @@ if (!existsSync(TMP_DIR)) {
 }
 
 // Generate proxy agent for Telegram API
-const agent = getProxyAgent("api.telegram.org");
-const botConfig = agent ? { client: { baseFetchConfig: { agent } } } : {};
+export const agent = getProxyAgent("api.telegram.org");
+// Use node-fetch in Bun environment because native fetch does not support proxy agents
+const botConfig = agent ? { client: { baseFetchConfig: { agent, fetch: nodeFetch } } } : {};
 export const bot = new Bot(TG_BOT_TOKEN, botConfig);
 
 // Download VK file to disk (/tmp/vk-tg-forwarder) using Bun.write
 async function downloadVkFileToDisk(url, filename) {
-  const res = await fetch(url);
+  const hostname = new URL(url).hostname;
+  const vkAgent = getProxyAgent(hostname);
+  const res = vkAgent ? await nodeFetch(url, { agent: vkAgent }) : await fetch(url);
   if (!res.ok) throw new Error(`fetch failed: ${res.status} ${url}`);
   
   const tempFileName = `vk_${crypto.randomUUID()}_${filename}`;
