@@ -83,6 +83,7 @@ export async function startTgListener(forwardHandler) {
       if (!message) return;
 
       const text = message.text || message.caption || "";
+      console.log(`[TG Update] Received message: "${text}" in chatId=${chatId}`);
 
       // Skip updates from other bots (only applies if we have sender info)
       if (ctx.from?.is_bot) return;
@@ -136,7 +137,12 @@ export async function startTgListener(forwardHandler) {
     }
   });
 
+  bot.catch((err) => {
+    console.error("Error in Telegram bot:", err);
+  });
+
   // Start grammY runner
+  console.log("Launching Telegram bot runner...");
   bot.start({
     onStart: (info) => {
       console.log(`Telegram Bot started as @${info.username}`);

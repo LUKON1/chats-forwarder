@@ -82,11 +82,11 @@ const translations = {
     remove: "Удалить",
     connect_new_chat: "Подключение чата через бота",
     generate_code_btn: "Сгенерировать пин-код подключения",
-    code_instruction: "Для подключения чата отправьте боту в ЛС или в группу/канал команду:",
+    code_instruction: "Для подключения чата отправьте боту в группу/канал команду:",
     your_code: "Ваш пин-код подключения",
     code_expires: "Код действителен в течение 10 минут",
     select_platform_code: "Выберите платформу для генерации кода",
-    footer_panel: "Панель управления Chat Forwarder &bull; Сессия активна &bull; Соединение защищено",
+    footer_panel: "Панель управления Chat Forwarder • Сессия активна • Соединение защищено",
 
     // Added/Missing translations
     loading_auth_state: "ПРОВЕРКА АВТОРИЗАЦИИ...",
@@ -192,11 +192,11 @@ const translations = {
     remove: "Remove",
     connect_new_chat: "Connect Chat via Bot",
     generate_code_btn: "Generate Connection Pin-Code",
-    code_instruction: "To connect a chat, send the following command to the bot in PM or chat:",
+    code_instruction: "To connect a chat, send the following command to the bot in the group or channel:",
     your_code: "Your Connection Pin-Code",
     code_expires: "Code is valid for 10 minutes",
     select_platform_code: "Select platform to generate code",
-    footer_panel: "Chat Forwarder Panel &bull; Admin Active &bull; Connection secure",
+    footer_panel: "Chat Forwarder Panel • Admin Active • Connection secure",
 
     // Added/Missing translations
     loading_auth_state: "LOADING AUTHENTICATION STATE...",
