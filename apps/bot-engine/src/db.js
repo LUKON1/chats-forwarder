@@ -1,6 +1,34 @@
-import { Database } from "bun:sqlite";
 import { mkdirSync, existsSync } from "fs";
 import { dirname } from "path";
+
+let Database;
+
+if (typeof Bun !== "undefined") {
+  // Use native Bun SQLite
+  const sqlite = await import("bun:sqlite");
+  Database = sqlite.Database;
+} else {
+  // Use native Node.js SQLite (available in Node.js 22.5+)
+  const sqlite = await import("node:sqlite");
+  Database = class Database {
+    constructor(path, options = {}) {
+      this.db = new sqlite.DatabaseSync(path, options);
+    }
+
+    run(sql) {
+      return this.db.exec(sql);
+    }
+
+    query(sql) {
+      const stmt = this.db.prepare(sql);
+      return {
+        run: (params = {}) => stmt.run(params),
+        get: (params = {}) => stmt.get(params),
+        all: (params = {}) => stmt.all(params)
+      };
+    }
+  };
+}
 
 const dbPath = process.env.DATABASE_PATH || "./data/db.sqlite";
 

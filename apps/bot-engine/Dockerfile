@@ -20,4 +20,4 @@ RUN mkdir -p /app/apps/bot-engine/data && chown -R node:node /app/apps/bot-engin
 USER node
 EXPOSE 4000
 WORKDIR /app/apps/bot-engine
-ENTRYPOINT [ "node", "src/index.js" ]
+ENTRYPOINT [ "node", "--experimental-sqlite", "src/index.js" ]
