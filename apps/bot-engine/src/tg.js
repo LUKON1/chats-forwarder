@@ -1,4 +1,7 @@
 import { Bot, InputFile, InputMediaBuilder } from "grammy";
+import { existsSync, mkdirSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
+import crypto from "node:crypto";
 import { getProxyAgent } from "./proxy.js";
 import { dbHelper } from "./db.js";
 
