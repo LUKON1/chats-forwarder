@@ -16,6 +16,8 @@ COPY apps/admin-ui ./apps/admin-ui
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 ENV NEXT_PUBLIC_API_URL=""
+# Bake backend URL for Next.js rewrites — must point to the bot-engine Docker service name
+ENV BACKEND_URL=http://bot-engine:4000
 RUN cd apps/admin-ui && bun run build
 
 # Production runner
