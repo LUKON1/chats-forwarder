@@ -1,0 +1,23 @@
+services:
+  bot-engine:
+    build:
+      context: .
+      dockerfile: apps/bot-engine/Dockerfile
+    volumes:
+      - bot-data:/app/apps/bot-engine/data
+    expose: 4000
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  admin-ui:
+    build:
+      context: .
+      dockerfile: apps/admin-ui/Dockerfile
+    expose: 3000
+    env_file:
+      - .env
+    restart: unless-stopped
+
+volumes:
+  bot-data:

@@ -50,3 +50,5 @@ apps/admin-ui/.next/
 
 # SQLite temporary/journal files
 *.sqlite-journal
+
+docker-compose.override.yml
