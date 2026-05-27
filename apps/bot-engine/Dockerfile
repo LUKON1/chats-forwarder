@@ -8,7 +8,7 @@ COPY package.json bun.lock ./
 COPY apps/admin-ui/package.json ./apps/admin-ui/
 COPY apps/bot-engine/package.json ./apps/bot-engine/
 # Install production dependencies for the entire monorepo
-RUN bun install --frozen-lockfile --production
+RUN bun install --production
 
 # Production runner
 FROM base AS runner
