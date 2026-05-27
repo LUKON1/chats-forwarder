@@ -72,7 +72,7 @@ export default function Login() {
         
         {error && (
           <div className="bg-rose-900 border-2 border-black text-lime-cream-50 text-sm font-mono p-3 mb-6 shadow-[2px_2px_0px_#000]">
-            {t("error_label")}: {error}
+            {t("error_label")}: {t(error)}
           </div>
         )}
 

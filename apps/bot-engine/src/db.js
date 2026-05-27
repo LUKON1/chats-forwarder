@@ -97,9 +97,23 @@ db.run(`
     target_platform TEXT NOT NULL,
     is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
     show_author INTEGER NOT NULL DEFAULT 1 CHECK(show_author IN (0, 1)),
+    is_reversed INTEGER NOT NULL DEFAULT 0 CHECK(is_reversed IN (0, 1)),
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 `);
+
+// Run SQLite migrations to add columns that may not exist in older databases
+try {
+  db.run("ALTER TABLE bridges ADD COLUMN is_reversed INTEGER NOT NULL DEFAULT 0 CHECK(is_reversed IN (0, 1))");
+} catch (e) {
+  // Column already exists, ignore error
+}
+
+try {
+  db.run("ALTER TABLE bridges ADD COLUMN show_author INTEGER NOT NULL DEFAULT 1 CHECK(show_author IN (0, 1))");
+} catch (e) {
+  // Column already exists, ignore error
+}
 
 
 
@@ -124,15 +138,18 @@ export const dbHelper = {
   getBridgesBySource: (platform, chatId) => {
     const query = db.query(`
       SELECT * FROM bridges 
-      WHERE source_platform = $platform AND source_chat_id = $chatId AND is_active = 1
+      WHERE is_active = 1 AND (
+        (source_platform = $platform AND source_chat_id = $chatId AND is_reversed = 0) OR
+        (target_platform = $platform AND target_chat_id = $chatId AND is_reversed = 1)
+      )
     `);
     return query.all({ $platform: platform, $chatId: Number(chatId) });
   },
 
   addBridge: (userId, sourcePlatform, sourceChatId, targetPlatform, targetChatId, title = null, showAuthor = true) => {
     const query = db.query(`
-      INSERT INTO bridges (user_id, source_platform, source_chat_id, target_platform, target_chat_id, title, show_author)
-      VALUES ($userId, $sourcePlatform, $sourceChatId, $targetPlatform, $targetChatId, $title, $showAuthor)
+      INSERT INTO bridges (user_id, source_platform, source_chat_id, target_platform, target_chat_id, title, show_author, is_reversed)
+      VALUES ($userId, $sourcePlatform, $sourceChatId, $targetPlatform, $targetChatId, $title, $showAuthor, 0)
       RETURNING *
     `);
     return query.get({
@@ -158,7 +175,7 @@ export const dbHelper = {
 
   updateBridge: (id, fields) => {
     // Whitelist allowed fields to prevent SQL injection
-    const allowedFields = ["is_active", "show_author", "title", "source_platform", "source_chat_id", "target_platform", "target_chat_id"];
+    const allowedFields = ["is_active", "show_author", "title", "source_platform", "source_chat_id", "target_platform", "target_chat_id", "is_reversed"];
     const keys = Object.keys(fields).filter(k => allowedFields.includes(k));
     if (keys.length === 0) return dbHelper.getBridge(id);
 

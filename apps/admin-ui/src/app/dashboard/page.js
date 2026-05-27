@@ -33,7 +33,14 @@ export default function Dashboard() {
   const [newRouteTitle, setNewRouteTitle] = useState("");
   const [newRouteSource, setNewRouteSource] = useState("");
   const [newRouteTarget, setNewRouteTarget] = useState("");
-  const [newRouteDirection, setNewRouteDirection] = useState("vk-to-tg");
+
+  /* Modal configuration state */
+  const [modalConfig, setModalConfig] = useState({ isOpen: false, title: "", message: "", type: "info" });
+
+  /* Show custom notification/error modal */
+  const showModal = useCallback((title, message, type = "info") => {
+    setModalConfig({ isOpen: true, title, message, type });
+  }, []);
 
   /* Handle log out */
   const handleLogout = useCallback(async () => {
@@ -101,8 +108,8 @@ export default function Dashboard() {
   }, [handleLogout]);
 
   // Load chats and pipelines from bot engine API
-  const loadData = useCallback(async () => {
-    setIsLoading(true);
+  const loadData = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
     setApiError("");
     try {
       // 1. Fetch connected chats pool
@@ -130,16 +137,19 @@ export default function Dashboard() {
         id: r.id,
         title: r.title || `${r.source_platform.toUpperCase()} -> ${r.target_platform.toUpperCase()}`,
         sourceId: r.source_chat_id,
+        sourcePlatform: r.source_platform,
         targetId: r.target_chat_id,
-        direction: `${r.source_platform}-to-${r.target_platform}`,
-        isActive: r.is_active === 1
+        targetPlatform: r.target_platform,
+        isReversed: r.is_reversed === 1,
+        isActive: r.is_active === 1,
+        showAuthor: r.show_author == null ? true : r.show_author === 1
       }));
       setRoutes(mappedRoutes);
     } catch (err) {
       console.error(err);
       setApiError(t("cannot_connect_api"));
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   }, [fetchWithAuth, t]);
 
@@ -155,6 +165,33 @@ export default function Dashboard() {
       loadData();
     }
   }, [push, loadData]);
+
+  // Poll connected chats when onboarding code is active to update UI automatically
+  useEffect(() => {
+    if (!generatedCode) return;
+
+    const initialChatsCount = chats.length;
+
+    const interval = setInterval(async () => {
+      try {
+        const chatsRes = await fetchWithAuth(`${API_URL}/api/chats`);
+        if (chatsRes.ok) {
+          const chatsData = await chatsRes.json();
+          const currentCount = (chatsData.vk || []).length + (chatsData.tg || []).length;
+          
+          if (currentCount > initialChatsCount) {
+            loadData(true);
+            setGeneratedCode(null);
+            clearInterval(interval);
+          }
+        }
+      } catch (err) {
+        console.error("Polling chats failed:", err);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [generatedCode, chats.length, fetchWithAuth, loadData]);
 
   /* Generate temporary onboarding PIN for connecting chats */
   const handleGenerateCode = async (e) => {
@@ -175,11 +212,11 @@ export default function Dashboard() {
       if (res.ok && data.code) {
         setGeneratedCode(data.code);
       } else {
-        alert(data.error || "Failed to generate code");
+        showModal(t("error_label"), t(data.error || "Failed to generate code"), "error");
       }
     } catch (err) {
       console.error(err);
-      alert("API server connection failed");
+      showModal(t("error_label"), t("API server connection failed"), "error");
     } finally {
       setGeneratingCode(false);
     }
@@ -192,10 +229,10 @@ export default function Dashboard() {
         method: "DELETE"
       });
       if (res.ok) {
-        loadData();
+        loadData(true);
       } else {
         const data = await res.json();
-        alert(data.error || "Failed to disconnect chat");
+        showModal(t("error_label"), t(data.error || "Failed to disconnect chat"), "error");
       }
     } catch (err) {
       console.error(err);
@@ -207,6 +244,9 @@ export default function Dashboard() {
     e.preventDefault();
     if (!newRouteTitle || !newRouteSource || !newRouteTarget) return;
 
+    const [sourcePlatform, sourceId] = newRouteSource.split(":");
+    const [targetPlatform, targetId] = newRouteTarget.split(":");
+
     try {
       const res = await fetchWithAuth(`${API_URL}/api/bridges`, {
         method: "POST",
@@ -215,10 +255,10 @@ export default function Dashboard() {
         },
         body: JSON.stringify({
           title: newRouteTitle,
-          source_platform: newRouteDirection === "vk-to-tg" ? "vk" : "tg",
-          source_chat_id: Number(newRouteSource),
-          target_platform: newRouteDirection === "vk-to-tg" ? "tg" : "vk",
-          target_chat_id: Number(newRouteTarget),
+          source_platform: sourcePlatform,
+          source_chat_id: Number(sourceId),
+          target_platform: targetPlatform,
+          target_chat_id: Number(targetId),
           show_author: true
         })
       });
@@ -228,41 +268,18 @@ export default function Dashboard() {
         setNewRouteTitle("");
         setNewRouteSource("");
         setNewRouteTarget("");
-        loadData();
+        loadData(true);
       } else {
         const data = await res.json();
-        alert(data.error || "Failed to create pipeline");
+        showModal(t("error_label"), t(data.error || "Failed to create pipeline"), "error");
       }
     } catch (err) {
       console.error(err);
     }
   };
 
-  /* Toggle bridge active status */
-  const handleToggleRoute = async (id, currentActive) => {
-    try {
-      const res = await fetchWithAuth(`${API_URL}/api/bridges/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          is_active: currentActive ? 0 : 1
-        })
-      });
-      if (res.ok) {
-        loadData();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  /* Reverse bridge direction flow */
+  /* Reverse bridge direction flow by toggling is_reversed flag */
   const handleReverseDirection = async (route) => {
-    const newSourcePlatform = route.direction === "vk-to-tg" ? "tg" : "vk";
-    const newTargetPlatform = route.direction === "vk-to-tg" ? "vk" : "tg";
-
     try {
       const res = await fetchWithAuth(`${API_URL}/api/bridges/${route.id}`, {
         method: "PUT",
@@ -270,14 +287,31 @@ export default function Dashboard() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          source_platform: newSourcePlatform,
-          source_chat_id: route.targetId,
-          target_platform: newTargetPlatform,
-          target_chat_id: route.sourceId
+          is_reversed: route.isReversed ? 0 : 1
         })
       });
       if (res.ok) {
-        loadData();
+        loadData(true);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  /* Toggle sender name prefix forwarding setting */
+  const handleToggleShowAuthor = async (route) => {
+    try {
+      const res = await fetchWithAuth(`${API_URL}/api/bridges/${route.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          show_author: route.showAuthor ? 0 : 1
+        })
+      });
+      if (res.ok) {
+        loadData(true);
       }
     } catch (err) {
       console.error(err);
@@ -291,7 +325,7 @@ export default function Dashboard() {
         method: "DELETE"
       });
       if (res.ok) {
-        loadData();
+        loadData(true);
       }
     } catch (err) {
       console.error(err);
@@ -412,40 +446,20 @@ export default function Dashboard() {
                       <h3 className="text-lg font-black uppercase border-b-2 border-black pb-2 text-lime-cream-200">
                         {t("config_pipeline")}
                       </h3>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                          <label className="block text-xs font-bold uppercase tracking-wider text-lime-cream-300 mb-2">
-                            {t("pipeline_name")}
-                          </label>
-                          <input
-                            type="text"
-                            value={newRouteTitle}
-                            onChange={(e) => setNewRouteTitle(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-yale-blue-950 border-2 border-black text-lime-cream-50 font-mono text-sm focus:outline-none focus:border-lime-cream-400 rounded-none"
-                            placeholder={t("placeholder_pipeline_name")}
-                            required
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold uppercase tracking-wider text-lime-cream-300 mb-2">
-                            {t("direction_flow")}
-                          </label>
-                          <select
-                            value={newRouteDirection}
-                            onChange={(e) => {
-                              setNewRouteDirection(e.target.value);
-                              setNewRouteSource("");
-                              setNewRouteTarget("");
-                            }}
-                            className="w-full px-4 py-2.5 bg-yale-blue-950 border-2 border-black text-lime-cream-50 font-mono text-sm focus:outline-none focus:border-lime-cream-400 rounded-none appearance-none"
-                          >
-                            <option value="vk-to-tg">{t("direction_vk_to_tg")}</option>
-                            <option value="tg-to-vk">{t("direction_tg_to_vk")}</option>
-                          </select>
-                        </div>
+                                           <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-lime-cream-300 mb-2">
+                          {t("pipeline_name")}
+                        </label>
+                        <input
+                          type="text"
+                          value={newRouteTitle}
+                          onChange={(e) => setNewRouteTitle(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-yale-blue-950 border-2 border-black text-lime-cream-50 font-mono text-sm focus:outline-none focus:border-lime-cream-400 rounded-none"
+                          placeholder={t("placeholder_pipeline_name")}
+                          required
+                        />
                       </div>
-
+ 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                           <label className="block text-xs font-bold uppercase tracking-wider text-lime-cream-300 mb-2">
@@ -458,13 +472,11 @@ export default function Dashboard() {
                             required
                           >
                             <option value="">{t("choose_source")}</option>
-                            {chats
-                              .filter((c) => c.platform === (newRouteDirection === "vk-to-tg" ? "vk" : "tg"))
-                              .map((c) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.name} ({c.externalId})
-                                </option>
-                              ))}
+                            {chats.map((c) => (
+                              <option key={`${c.platform}:${c.id}`} value={`${c.platform}:${c.id}`}>
+                                {c.platform === "vk" ? "VK" : "Telegram"}: {c.name}
+                              </option>
+                            ))}
                           </select>
                         </div>
                         <div>
@@ -479,10 +491,10 @@ export default function Dashboard() {
                           >
                             <option value="">{t("choose_target")}</option>
                             {chats
-                              .filter((c) => c.platform === (newRouteDirection === "vk-to-tg" ? "tg" : "vk"))
+                              .filter((c) => !newRouteSource || `${c.platform}:${c.id}` !== newRouteSource)
                               .map((c) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.name} ({c.externalId})
+                                <option key={`${c.platform}:${c.id}`} value={`${c.platform}:${c.id}`}>
+                                  {c.platform === "vk" ? "VK" : "Telegram"}: {c.name}
                                 </option>
                               ))}
                           </select>
@@ -520,13 +532,14 @@ export default function Dashboard() {
                   {/* Routes List */}
                   <div className="space-y-6">
                     {routes.map((route) => {
-                      const sourceChat = chats.find((c) => c.platform === (route.direction === "vk-to-tg" ? "vk" : "tg") && c.id === route.sourceId);
-                      const targetChat = chats.find((c) => c.platform === (route.direction === "vk-to-tg" ? "tg" : "vk") && c.id === route.targetId);
+                      const sourceChat = chats.find((c) => c.platform === route.sourcePlatform && c.id === route.sourceId);
+                      const targetChat = chats.find((c) => c.platform === route.targetPlatform && c.id === route.targetId);
+                      const flowDirection = route.isReversed ? "right-to-left" : "left-to-right";
 
                       return (
                         <div key={route.id} className="neo-box bg-yale-blue-900 flex flex-col relative overflow-hidden">
                           {/* Top state accent bar */}
-                          <div className={`h-2 border-b-2 border-black ${route.isActive ? "bg-lime-cream-400" : "bg-zinc-600"}`} />
+                          <div className="h-2 border-b-2 border-black bg-lime-cream-400" />
                           
                           <div className="p-6 space-y-6">
                             {/* Header Details */}
@@ -540,16 +553,19 @@ export default function Dashboard() {
                               {/* Top Controls */}
                               <div className="flex items-center space-x-3 w-full md:w-auto justify-end">
                                 <button
-                                  onClick={() => handleToggleRoute(route.id, route.isActive)}
+                                  onClick={() => handleToggleShowAuthor(route)}
                                   type="button"
-                                  className={`Neo-button px-4 py-2 border-2 border-black text-xs font-black uppercase tracking-wider ${
-                                    route.isActive 
-                                      ? "bg-lime-cream-400 text-black" 
-                                      : "bg-zinc-800 text-zinc-400"
+                                  className={`px-4 py-2 border-2 border-black text-xs font-black uppercase tracking-wider neo-button ${
+                                    route.showAuthor
+                                      ? "bg-tropical-teal-500 text-black"
+                                      : "bg-yale-blue-950 text-zinc-400"
                                   }`}
                                 >
-                                  {route.isActive ? t("active") : t("paused")}
+                                  {route.showAuthor ? t("author_shown") : t("author_hidden")}
                                 </button>
+                                <div className="bg-lime-cream-400 text-black border-2 border-black px-4 py-2 text-xs font-black uppercase tracking-wider select-none">
+                                  {t("active")}
+                                </div>
                                 <button
                                   onClick={() => handleDeleteRoute(route.id)}
                                   type="button"
@@ -565,7 +581,7 @@ export default function Dashboard() {
                               <div className="flex justify-between items-center bg-yale-blue-950 p-4 border-2 border-black">
                                 {/* Left Platform Node */}
                                 <div className="flex items-center space-x-3">
-                                  {route.direction === "vk-to-tg" ? (
+                                  {route.sourcePlatform === "vk" ? (
                                     <VkIcon className="w-8 h-8" />
                                   ) : (
                                     <TelegramIcon className="w-8 h-8" />
@@ -585,10 +601,10 @@ export default function Dashboard() {
                                 <button
                                   onClick={() => handleReverseDirection(route)}
                                   type="button"
-                                  title="⇅"
-                                  className="w-10 h-10 bg-tropical-teal-500 text-black border-2 border-black flex items-center justify-center font-mono font-black neo-button text-lg"
+                                  title="Развернуть направление пересылки"
+                                  className="w-10 h-10 bg-tropical-teal-500 text-black border-2 border-black flex items-center justify-center font-mono font-black neo-button text-xl animate-pulseFast"
                                 >
-                                  ⇅
+                                  {route.isReversed ? "←" : "→"}
                                 </button>
 
                                 {/* Right Platform Node */}
@@ -602,18 +618,19 @@ export default function Dashboard() {
                                       {targetChat ? targetChat.externalId : t("none")}
                                     </div>
                                   </div>
-                                  {route.direction === "vk-to-tg" ? (
-                                    <TelegramIcon className="w-8 h-8" />
-                                  ) : (
+                                  {route.targetPlatform === "vk" ? (
                                     <VkIcon className="w-8 h-8" />
+                                  ) : (
+                                    <TelegramIcon className="w-8 h-8" />
                                   )}
                                 </div>
                               </div>
 
                               {/* Message Flow visual animation running Dog/Bird */}
                               <MessageFlowAnimation 
-                                direction={route.direction} 
-                                isMoving={route.isActive} 
+                                direction={flowDirection} 
+                                sourcePlatform={route.isReversed ? route.targetPlatform : route.sourcePlatform}
+                                isMoving={true} 
                               />
                             </div>
                           </div>
@@ -764,6 +781,32 @@ export default function Dashboard() {
       <footer className="border-t-4 border-black py-6 bg-yale-blue-900 text-center font-mono text-xs text-lime-cream-400 mt-auto">
         {t("footer_panel")}
       </footer>
+
+      {/* Neo-brutalist Modal */}
+      {modalConfig.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-yale-blue-900 border-4 border-black p-6 shadow-[8px_8px_0px_#000] relative">
+            <div className={`absolute top-0 inset-x-0 h-2 border-b-2 border-black ${modalConfig.type === "error" ? "bg-rose-600" : "bg-tropical-teal-500"}`} />
+            
+            <h3 className="text-lg font-black uppercase text-lime-cream-100 mb-2 mt-2">
+              {modalConfig.title}
+            </h3>
+            <p className="text-sm font-mono text-lime-cream-300 mb-6 whitespace-pre-line leading-relaxed">
+              {modalConfig.message}
+            </p>
+            
+            <div className="flex justify-end">
+              <button
+                onClick={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
+                type="button"
+                className="px-6 py-2.5 bg-lime-cream-400 text-black font-black uppercase tracking-wider border-2 border-black neo-button text-xs"
+              >
+                {t("close")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -92,17 +92,27 @@ const BirdFrame2 = () => (
   </svg>
 );
 
-const Carrier = ({ direction, frame }) => {
-  if (direction === "vk-to-tg") {
-    // VK to TG: Dog carrying letter
-    return frame === 1 ? <DogFrame1 /> : <DogFrame2 />;
+const Carrier = ({ direction, sourcePlatform, frame }) => {
+  if (sourcePlatform === "vk") {
+    // VK: Dog running right, flip if moving left
+    const scaleX = direction === "left-to-right" ? 1 : -1;
+    return (
+      <div style={{ transform: `scaleX(${scaleX})` }} className="inline-block">
+        {frame === 1 ? <DogFrame1 /> : <DogFrame2 />}
+      </div>
+    );
   } else {
-    // TG to VK: Bird carrying letter
-    return frame === 1 ? <BirdFrame1 /> : <BirdFrame2 />;
+    // TG: Bird flying left, flip if moving right
+    const scaleX = direction === "left-to-right" ? -1 : 1;
+    return (
+      <div style={{ transform: `scaleX(${scaleX})` }} className="inline-block">
+        {frame === 1 ? <BirdFrame1 /> : <BirdFrame2 />}
+      </div>
+    );
   }
 };
 
-export default function MessageFlowAnimation({ direction = "vk-to-tg", isMoving = true }) {
+export default function MessageFlowAnimation({ direction = "left-to-right", sourcePlatform = "vk", isMoving = true }) {
   const containerRef = useRef(null);
   const carrierRef = useRef(null);
   const [frame, setFrame] = useState(1);
@@ -121,8 +131,8 @@ export default function MessageFlowAnimation({ direction = "vk-to-tg", isMoving 
     if (!isMoving || !carrierRef.current || !containerRef.current) return;
 
     const containerWidth = containerRef.current.offsetWidth;
-    const startX = direction === "vk-to-tg" ? -50 : containerWidth;
-    const endX = direction === "vk-to-tg" ? containerWidth : -50;
+    const startX = direction === "left-to-right" ? -50 : containerWidth;
+    const endX = direction === "left-to-right" ? containerWidth : -50;
 
     // Reset position
     gsap.set(carrierRef.current, { x: startX });
@@ -152,7 +162,7 @@ export default function MessageFlowAnimation({ direction = "vk-to-tg", isMoving 
         className="absolute pointer-events-none"
         style={{ top: "8px" }}
       >
-        <Carrier direction={direction} frame={frame} />
+        <Carrier direction={direction} sourcePlatform={sourcePlatform} frame={frame} />
       </div>
     </div>
   );

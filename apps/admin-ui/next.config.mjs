@@ -1,3 +1,5 @@
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:4000";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   /* Standalone build for Docker */
@@ -6,7 +8,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://bot-engine:4000/api/:path*',
+        destination: `${BACKEND_URL}/api/:path*`,
       },
     ];
   },

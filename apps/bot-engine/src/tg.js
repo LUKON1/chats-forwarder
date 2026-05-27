@@ -78,8 +78,6 @@ export async function sendVoice(chatId, url) {
 
 // Start Telegram listener for forwarding TG -> VK (both messages and channel posts)
 export async function startTgListener(forwardHandler) {
-  let logCount = 0;
-
   // Listen to any message (text, photos, documents, etc.) in chats, groups, and channels
   bot.on(["message", "channel_post"], async (ctx) => {
     try {
@@ -88,7 +86,6 @@ export async function startTgListener(forwardHandler) {
       if (!message) return;
 
       const text = message.text || message.caption || "";
-      console.log(`[TG Update] Received message: "${text}" in chatId=${chatId}`);
 
       // Skip updates from other bots (only applies if we have sender info)
       if (ctx.from?.is_bot) return;
@@ -129,10 +126,6 @@ export async function startTgListener(forwardHandler) {
       // Dynamic routing to multiple targets (TG -> VK, TG -> TG, etc.)
       const activeBridges = dbHelper.getBridgesBySource("tg", chatId);
 
-      if (logCount < 5) {
-        console.log(`[TG Message] chatId=${chatId} hasActiveBridge=${activeBridges.length > 0}`);
-        logCount++;
-      }
 
       for (const bridge of activeBridges) {
         await forwardHandler(ctx, bridge);

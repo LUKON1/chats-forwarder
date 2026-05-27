@@ -49,9 +49,10 @@ async function downloadTelegramFile(fileId) {
   return tempFilePath;
 }
 
-// Name cache for VK users
+// Name cache for VK users and groups
 const vkNameCache = new Map();
 
+// Resolve VK user or community names
 async function resolveVkName(senderId) {
   if (vkNameCache.has(senderId)) return vkNameCache.get(senderId);
   try {
@@ -60,8 +61,13 @@ async function resolveVkName(senderId) {
       const name = `${user.first_name} ${user.last_name}`;
       vkNameCache.set(senderId, name);
       return name;
+    } else if (senderId < 0) {
+      const [group] = await vk.api.groups.getById({ group_ids: Math.abs(senderId) });
+      const name = group?.name || `Group ${Math.abs(senderId)}`;
+      vkNameCache.set(senderId, name);
+      return name;
     }
-    return "Group";
+    return "VK User";
   } catch {
     return String(senderId);
   }
@@ -126,12 +132,23 @@ function getVkVoiceUrl(attachment) {
 
 // Universal Forwarding Entrypoint
 export async function forwardMessage(ctx, bridge) {
-  const { target_platform } = bridge;
+  // If reversed, construct a virtual active bridge with swapped source and target fields
+  const activeBridge = bridge.is_reversed === 1
+    ? {
+        ...bridge,
+        source_platform: bridge.target_platform,
+        source_chat_id: bridge.target_chat_id,
+        target_platform: bridge.source_platform,
+        target_chat_id: bridge.source_chat_id
+      }
+    : bridge;
+
+  const { target_platform } = activeBridge;
 
   if (target_platform === "tg") {
-    await forwardToTg(ctx, bridge);
+    await forwardToTg(ctx, activeBridge);
   } else if (target_platform === "vk") {
-    await forwardToVk(ctx, bridge);
+    await forwardToVk(ctx, activeBridge);
   }
 }
 
@@ -208,9 +225,10 @@ async function forwardToTg(ctx, bridge) {
     // B. SOURCE IS TG -> TARGET IS TG
     else if (sourcePlatform === "tg") {
       const message = ctx.message || ctx.channelPost;
+      const authorSignature = message?.author_signature;
       const senderName = ctx.from
         ? (ctx.from.first_name + (ctx.from.last_name ? ` ${ctx.from.last_name}` : ""))
-        : (ctx.chat.title || "Telegram Channel");
+        : (authorSignature ? `${ctx.chat.title} (${authorSignature})` : (ctx.chat.title || "Telegram Channel"));
 
       const prefix = bridge.show_author ? `${senderName}: ` : "";
       const messageText = message?.text || message?.caption || "";
@@ -273,9 +291,10 @@ async function processSingleTgToVk(ctx, bridge) {
 
     if (!messageText && !hasSupportedMedia) return;
 
+    const authorSignature = message?.author_signature;
     const senderName = ctx.from
       ? (ctx.from.first_name + (ctx.from.last_name ? ` ${ctx.from.last_name}` : ""))
-      : (ctx.chat.title || "Telegram Channel");
+      : (authorSignature ? `${ctx.chat.title} (${authorSignature})` : (ctx.chat.title || "Telegram Channel"));
 
     const prefix = bridge.show_author ? `${senderName}: ` : "";
     const fullText = messageText ? `${prefix}${messageText}` : (prefix ? prefix.slice(0, -2) : "");
@@ -359,9 +378,10 @@ async function flushTgMediaGroupToVk(mediaGroupId) {
 
     const firstMsg = firstWithText.message || firstWithText.channelPost;
 
+    const authorSignature = firstMsg?.author_signature;
     const senderName = firstWithText.from
       ? (firstWithText.from.first_name + (firstWithText.from.last_name ? ` ${firstWithText.from.last_name}` : ""))
-      : (firstWithText.chat.title || "Telegram Channel");
+      : (authorSignature ? `${firstWithText.chat.title} (${authorSignature})` : (firstWithText.chat.title || "Telegram Channel"));
 
     const prefix = bridge.show_author ? `${senderName}: ` : "";
     const messageText = firstMsg?.text || firstMsg?.caption || "";

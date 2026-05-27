@@ -89,6 +89,8 @@ const translations = {
     footer_panel: "Панель управления Chat Forwarder • Сессия активна • Соединение защищено",
 
     // Added/Missing translations
+    author_shown: "С отправителем",
+    author_hidden: "Без отправителя",
     loading_auth_state: "ПРОВЕРКА АВТОРИЗАЦИИ...",
     cannot_connect_api: "Не удалось подключиться к серверу API бота на порту 4000",
     sync_with_api: "СИНХРОНИЗАЦИЯ С СЕРВЕРОМ API...",
@@ -98,6 +100,15 @@ const translations = {
     generating: "ГЕНЕРАЦИЯ...",
     username_too_short: "Имя пользователя должно быть от 3 до 20 символов",
     password_too_short: "Пароль должен быть не менее 6 символов",
+    "Missing required fields": "Заполните все обязательные поля",
+    "Cannot bridge a chat to itself": "Нельзя настроить пересылку из чата в него же",
+    "Username already taken": "Это имя пользователя уже занято",
+    "Username must be between 3 and 20 characters long": "Имя пользователя должно быть длиной от 3 до 20 символов",
+    "Password must be at least 6 characters long": "Пароль должен быть не менее 6 символов",
+    "Failed to generate code": "Не удалось сгенерировать код подключения",
+    "Failed to disconnect chat": "Не удалось удалить чат из пула",
+    "Failed to create pipeline": "Не удалось создать маршрут пересылки",
+    "API server connection failed": "Ошибка соединения с сервером API",
 
     // How to Start translations
     how_to_start: "Как начать",
@@ -199,6 +210,8 @@ const translations = {
     footer_panel: "Chat Forwarder Panel • Admin Active • Connection secure",
 
     // Added/Missing translations
+    author_shown: "With sender",
+    author_hidden: "No sender",
     loading_auth_state: "LOADING AUTHENTICATION STATE...",
     cannot_connect_api: "Could not connect to Bot API Server on port 4000",
     sync_with_api: "SYNCHRONIZING WITH BOT ENGINE API...",
@@ -208,6 +221,15 @@ const translations = {
     generating: "GENERATING...",
     username_too_short: "Username must be between 3 and 20 characters",
     password_too_short: "Password must be at least 6 characters",
+    "Missing required fields": "Missing required fields",
+    "Cannot bridge a chat to itself": "Cannot bridge a chat to itself",
+    "Username already taken": "Username already taken",
+    "Username must be between 3 and 20 characters long": "Username must be between 3 and 20 characters",
+    "Password must be at least 6 characters long": "Password must be at least 6 characters",
+    "Failed to generate code": "Failed to generate code",
+    "Failed to disconnect chat": "Failed to disconnect chat",
+    "Failed to create pipeline": "Failed to create pipeline",
+    "API server connection failed": "API server connection failed",
 
     // How to Start translations
     how_to_start: "How to Start",

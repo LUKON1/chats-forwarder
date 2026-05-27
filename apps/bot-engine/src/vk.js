@@ -26,8 +26,6 @@ export const vk = new VK({
 
 // Start Bots Long Poll and route messages dynamically based on DB routes
 export async function startVkListener(forwardHandler) {
-  let logCount = 0;
-
   vk.updates.on("message_new", async (ctx) => {
     try {
       // Skip updates sent by this bot itself to prevent loops
@@ -69,10 +67,7 @@ export async function startVkListener(forwardHandler) {
       // Dynamic routing to multiple targets (VK -> TG, VK -> VK, etc.)
       const activeBridges = dbHelper.getBridgesBySource("vk", ctx.peerId);
       
-      if (logCount < 5) {
-        console.log(`[VK Message] peerId=${ctx.peerId} hasActiveBridge=${activeBridges.length > 0}`);
-        logCount++;
-      }
+
 
       for (const bridge of activeBridges) {
         await forwardHandler(ctx, bridge);

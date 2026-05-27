@@ -25,38 +25,47 @@ export default function DashboardPreview() {
       id: 1, 
       title: "Tech News Auto-Post", 
       sourceId: 1, 
+      sourcePlatform: "vk",
       targetId: 3, 
-      direction: "vk-to-tg", 
-      isActive: true
+      targetPlatform: "tg",
+      isReversed: false,
+      showAuthor: true
     },
     { 
       id: 2, 
       title: "Community Sync Pipeline", 
       sourceId: 4, 
+      sourcePlatform: "tg",
       targetId: 2, 
-      direction: "tg-to-vk", 
-      isActive: false
+      targetPlatform: "vk",
+      isReversed: false,
+      showAuthor: true
     }
   ]);
 
-  /* Toggle active/paused state on landing preview */
-  const handleToggleRoute = (id) => {
-    setRoutes(
-      routes.map((r) => (r.id === id ? { ...r, isActive: !r.isActive } : r))
-    );
-  };
-
-  /* Swap direction on landing preview */
+  /* Swap direction on landing preview by toggling isReversed */
   const handleReverseDirection = (id) => {
     setRoutes(
       routes.map((r) => {
         if (r.id === id) {
-          const nextDir = r.direction === "vk-to-tg" ? "tg-to-vk" : "vk-to-tg";
           return {
             ...r,
-            direction: nextDir,
-            sourceId: r.targetId,
-            targetId: r.sourceId
+            isReversed: !r.isReversed
+          };
+        }
+        return r;
+      })
+    );
+  };
+
+  /* Toggle sender name prefix visibility on landing preview */
+  const handleToggleShowAuthor = (id) => {
+    setRoutes(
+      routes.map((r) => {
+        if (r.id === id) {
+          return {
+            ...r,
+            showAuthor: !r.showAuthor
           };
         }
         return r;
@@ -111,8 +120,9 @@ export default function DashboardPreview() {
         {activeTab === "routes" && (
           <div className="space-y-6">
             {routes.map((route) => {
-              const sourceChat = chats.find((c) => c.platform === (route.direction === "vk-to-tg" ? "vk" : "tg") && c.id === route.sourceId);
-              const targetChat = chats.find((c) => c.platform === (route.direction === "vk-to-tg" ? "tg" : "vk") && c.id === route.targetId);
+              const sourceChat = chats.find((c) => c.platform === route.sourcePlatform && c.id === route.sourceId);
+              const targetChat = chats.find((c) => c.platform === route.targetPlatform && c.id === route.targetId);
+              const flowDirection = route.isReversed ? "right-to-left" : "left-to-right";
 
               return (
                 <div key={route.id} className="p-5 bg-yale-blue-950 border-2 border-black relative overflow-hidden flex flex-col space-y-4">
@@ -126,16 +136,19 @@ export default function DashboardPreview() {
 
                     <div className="flex space-x-2 w-full md:w-auto justify-end">
                       <button
-                        onClick={() => handleToggleRoute(route.id)}
+                        onClick={() => handleToggleShowAuthor(route.id)}
                         type="button"
                         className={`px-3 py-1.5 border-2 border-black text-[10px] font-black uppercase tracking-wider neo-button ${
-                          route.isActive 
-                            ? "bg-lime-cream-400 text-black" 
-                            : "bg-zinc-800 text-zinc-400"
+                          route.showAuthor
+                            ? "bg-tropical-teal-500 text-black"
+                            : "bg-yale-blue-900 text-zinc-400"
                         }`}
                       >
-                        {route.isActive ? t("active") : t("paused")}
+                        {route.showAuthor ? t("author_shown") : t("author_hidden")}
                       </button>
+                      <div className="px-3 py-1.5 border-2 border-black text-[10px] font-black uppercase tracking-wider bg-lime-cream-400 text-black select-none">
+                        {t("active")}
+                      </div>
                     </div>
                   </div>
 
@@ -144,7 +157,7 @@ export default function DashboardPreview() {
                     <div className="flex justify-between items-center bg-yale-blue-900 p-3 border-2 border-black text-xs">
                       {/* Source */}
                       <div className="flex items-center space-x-2">
-                        {route.direction === "vk-to-tg" ? <VkIcon className="w-6 h-6" /> : <TelegramIcon className="w-6 h-6" />}
+                        {route.sourcePlatform === "vk" ? <VkIcon className="w-6 h-6" /> : <TelegramIcon className="w-6 h-6" />}
                         <div>
                           <div className="text-[9px] uppercase font-bold text-lime-cream-400">{t("source")}</div>
                           <div className="font-black uppercase text-lime-cream-200">{sourceChat?.name}</div>
@@ -158,7 +171,7 @@ export default function DashboardPreview() {
                         title="Reverse flow"
                         className="w-8 h-8 bg-tropical-teal-500 text-black border-2 border-black flex items-center justify-center font-mono font-black neo-button text-sm"
                       >
-                        ⇅
+                        {route.isReversed ? "←" : "→"}
                       </button>
 
                       {/* Destination */}
@@ -167,14 +180,15 @@ export default function DashboardPreview() {
                           <div className="text-[9px] uppercase font-bold text-lime-cream-400">{t("destination")}</div>
                           <div className="font-black uppercase text-lime-cream-200">{targetChat?.name}</div>
                         </div>
-                        {route.direction === "vk-to-tg" ? <TelegramIcon className="w-6 h-6" /> : <VkIcon className="w-6 h-6" />}
+                        {route.targetPlatform === "vk" ? <VkIcon className="w-6 h-6" /> : <TelegramIcon className="w-6 h-6" />}
                       </div>
                     </div>
 
                     {/* GSAP Run Animation inside Preview */}
                     <MessageFlowAnimation 
-                      direction={route.direction} 
-                      isMoving={route.isActive} 
+                      direction={flowDirection} 
+                      sourcePlatform={route.isReversed ? route.targetPlatform : route.sourcePlatform}
+                      isMoving={true} 
                     />
                   </div>
                 </div>
