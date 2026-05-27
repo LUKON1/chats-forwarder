@@ -1,4 +1,6 @@
 import crypto from "crypto";
+import http from "node:http";
+import bcrypt from "bcryptjs";
 import { startVkListener } from "./vk.js";
 import { startTgListener } from "./tg.js";
 import { forwardVkToTg, forwardTgToVk } from "./forwarder.js";
@@ -11,6 +13,63 @@ const API_SECRET = process.env.API_SECRET || (() => {
   console.log(`[SECURITY WARNING] API_SECRET not set in env. Generated random secret for this session: ${generatedSecret}`);
   return generatedSecret;
 })();
+
+// Fetch API adapter for Node.js http server
+function createFetchServer(fetchHandler, port) {
+  return http.createServer(async (nodeReq, nodeRes) => {
+    try {
+      // 1. Build headers
+      const headers = new Headers();
+      for (const [key, value] of Object.entries(nodeReq.headers)) {
+        if (Array.isArray(value)) {
+          value.forEach(v => headers.append(key, v));
+        } else if (value !== undefined) {
+          headers.set(key, value);
+        }
+      }
+
+      // 2. Build full URL
+      const protocol = nodeReq.socket.encrypted ? "https" : "http";
+      const host = nodeReq.headers.host || "localhost";
+      const url = new URL(nodeReq.url, `${protocol}://${host}`);
+
+      // 3. Read body
+      const chunks = [];
+      for await (const chunk of nodeReq) {
+        chunks.push(chunk);
+      }
+      const body = chunks.length > 0 ? Buffer.concat(chunks) : undefined;
+
+      // 4. Create Fetch Request
+      const fetchReq = new Request(url.toString(), {
+        method: nodeReq.method,
+        headers,
+        body: ["GET", "HEAD"].includes(nodeReq.method) ? undefined : body,
+      });
+
+      // 5. Call handler
+      const fetchRes = await fetchHandler(fetchReq);
+
+      // 6. Write response headers and status
+      nodeRes.writeHead(fetchRes.status, Object.fromEntries(fetchRes.headers.entries()));
+
+      // 7. Write response body
+      if (fetchRes.body) {
+        const reader = fetchRes.body.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          nodeRes.write(value);
+        }
+      }
+      nodeRes.end();
+    } catch (err) {
+      console.error("Fetch server adapter error:", err);
+      nodeRes.writeHead(500, { "Content-Type": "application/json" });
+      nodeRes.end(JSON.stringify({ error: "Internal Server Error" }));
+    }
+  }).listen(port);
+}
 
 console.log("Chat Forwarder engine starting...");
 
@@ -38,9 +97,7 @@ setInterval(() => {
 }, 60 * 60 * 1000);
 
 // Start HTTP REST API Server
-Bun.serve({
-  port: API_PORT,
-  async fetch(req) {
+createFetchServer(async (req) => {
     const url = new URL(req.url);
     const path = url.pathname;
     const method = req.method;
@@ -75,8 +132,8 @@ Bun.serve({
           return new Response(JSON.stringify({ error: "Invalid credentials" }), { status: 401, headers });
         }
 
-        // Verify password hash using Bun native API
-        const isValid = await Bun.password.verify(password, user.password_hash);
+        // Verify password hash using bcryptjs
+        const isValid = await bcrypt.compare(password, user.password_hash);
         if (!isValid) {
           return new Response(JSON.stringify({ error: "Invalid credentials" }), { status: 401, headers });
         }
@@ -116,8 +173,8 @@ Bun.serve({
           return new Response(JSON.stringify({ error: "Username already taken" }), { status: 409, headers });
         }
 
-        // Hash password using Bun native API (bcrypt)
-        const passwordHash = await Bun.password.hash(password);
+        // Hash password using bcryptjs
+        const passwordHash = await bcrypt.hash(password, 10);
         const newUser = dbHelper.addUser(username, passwordHash);
 
         return new Response(JSON.stringify({
@@ -351,7 +408,6 @@ Bun.serve({
         headers
       });
     }
-  }
-});
+  }, API_PORT);
 
 console.log(`HTTP API server running on port ${API_PORT}`);

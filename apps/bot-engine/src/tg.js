@@ -1,5 +1,5 @@
 import { Bot, InputFile, InputMediaBuilder } from "grammy";
-import { existsSync, mkdirSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, unlinkSync, promises as fsPromises } from "node:fs";
 import { join } from "node:path";
 import crypto from "node:crypto";
 import nodeFetch from "node-fetch";
@@ -25,7 +25,7 @@ export const agent = getProxyAgent("api.telegram.org");
 const botConfig = agent ? { client: { baseFetchConfig: { agent, fetch: nodeFetch } } } : {};
 export const bot = new Bot(TG_BOT_TOKEN, botConfig);
 
-// Download VK file to disk (/tmp/vk-tg-forwarder) using Bun.write
+// Download VK file to disk (/tmp/vk-tg-forwarder) using Node fs
 async function downloadVkFileToDisk(url, filename) {
   const hostname = new URL(url).hostname;
   const vkAgent = getProxyAgent(hostname);
@@ -35,7 +35,8 @@ async function downloadVkFileToDisk(url, filename) {
   const tempFileName = `vk_${crypto.randomUUID()}_${filename}`;
   const tempFilePath = join(TMP_DIR, tempFileName);
   
-  await Bun.write(tempFilePath, res);
+  const arrayBuffer = await res.arrayBuffer();
+  await fsPromises.writeFile(tempFilePath, Buffer.from(arrayBuffer));
   return tempFilePath;
 }
 

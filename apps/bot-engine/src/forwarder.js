@@ -1,7 +1,7 @@
 import { vk } from "./vk.js";
 import { bot, sendText, sendPhoto, sendMediaGroup, sendDocument, sendVoice, agent } from "./tg.js";
 import { dbHelper } from "./db.js";
-import { mkdirSync, existsSync, unlinkSync } from "fs";
+import { mkdirSync, existsSync, unlinkSync, readFileSync, promises as fsPromises } from "fs";
 import { join } from "path";
 import crypto from "crypto";
 import nodeFetch from "node-fetch";
@@ -15,11 +15,13 @@ if (!existsSync(TMP_DIR)) {
 // Buffer to accumulate Telegram media groups (albums)
 const mediaGroupBuffers = new Map();
 
-// Helper to upload files to VK upload servers using Bun.file
+// Helper to upload files to VK upload servers using Node File API
 async function uploadToVkServer(uploadUrl, filePath, filename, fieldName = "file") {
-  const file = Bun.file(filePath);
+  const buffer = readFileSync(filePath);
+  // Create standard File object which is supported natively in Node.js 20+ and Bun
+  const file = new File([buffer], filename);
   const formData = new FormData();
-  formData.append(fieldName, file, filename);
+  formData.append(fieldName, file);
 
   const res = await fetch(uploadUrl, {
     method: "POST",
@@ -30,7 +32,7 @@ async function uploadToVkServer(uploadUrl, filePath, filename, fieldName = "file
   return res.json();
 }
 
-// Download Telegram file to disk (/tmp/chat-forwarder) using Bun.write
+// Download Telegram file to disk (/tmp/chat-forwarder) using Node fs
 async function downloadTelegramFile(fileId) {
   const file = await bot.api.getFile(fileId);
   const url = `https://api.telegram.org/file/bot${process.env.TG_BOT_TOKEN}/${file.file_path}`;
@@ -42,7 +44,8 @@ async function downloadTelegramFile(fileId) {
   const tempFileName = `tg_${crypto.randomUUID()}_${file.file_path.split("/").pop()}`;
   const tempFilePath = join(TMP_DIR, tempFileName);
   
-  await Bun.write(tempFilePath, res);
+  const arrayBuffer = await res.arrayBuffer();
+  await fsPromises.writeFile(tempFilePath, Buffer.from(arrayBuffer));
   return tempFilePath;
 }
 
