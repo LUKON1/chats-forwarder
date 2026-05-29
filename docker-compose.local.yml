@@ -1,0 +1,35 @@
+services:
+  bot-engine:
+    build:
+      context: .
+      dockerfile: apps/bot-engine/Dockerfile
+      target: runner
+      network: host
+    volumes:
+      - bot-data-local:/app/apps/bot-engine/data
+    ports:
+      - "4000:4000"
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  admin-ui:
+    build:
+      context: .
+      dockerfile: apps/admin-ui/Dockerfile
+      target: runner
+      network: host
+    ports:
+      - "3000:3000"
+    environment:
+      - BACKEND_URL=http://bot-engine:4000
+    depends_on:
+      - bot-engine
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+volumes:
+  bot-data-local:

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
 
-const API_URL = typeof process.env.NEXT_PUBLIC_API_URL === "string" ? process.env.NEXT_PUBLIC_API_URL : "http://localhost:4000";
 
 export default function Login() {
   const [username, setUsername] = useState("");
@@ -30,7 +29,7 @@ export default function Login() {
     }
 
     try {
-      const res = await fetch(`${API_URL}/api/auth/login`, {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -55,7 +54,7 @@ export default function Login() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-yale-blue-950 text-lime-cream-50 p-6 font-sans relative">
+    <div className="flex-grow flex flex-col items-center justify-center bg-yale-blue-950 text-lime-cream-50 p-6 font-sans relative">
       <div className="looping-bg-grid" />
 
       {/* Auth Box */}
@@ -64,9 +63,6 @@ export default function Login() {
         <div className="absolute top-0 inset-x-0 h-2 bg-lime-cream-400 border-b-2 border-black" />
 
         <div className="text-center mb-8 mt-2">
-          <Link href="/" className="inline-block font-mono font-black tracking-tight text-2xl uppercase mb-2 hover:text-lime-cream-300">
-            {t("title")}
-          </Link>
           <h2 className="text-xl font-bold uppercase tracking-wide text-lime-cream-200">{t("sys_auth")}</h2>
         </div>
         

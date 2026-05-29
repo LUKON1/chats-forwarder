@@ -1,6 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/context/LanguageContext";
+import Header from "@/components/Header";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Chat Forwarder — Платформа автоматизации SMM",
-  description: "Кроссплатформенная система пересылки сообщений на базе Bun и Next.js.",
+  title: "Chat Forwarder",
+  description: "Кроссплатформенная система пересылки сообщений.",
 };
 
 export default function RootLayout({ children }) {
@@ -23,8 +24,11 @@ export default function RootLayout({ children }) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
-        <LanguageProvider>{children}</LanguageProvider>
+      <body className="min-h-full flex flex-col bg-yale-blue-950 text-lime-cream-50">
+        <LanguageProvider>
+          <Header />
+          {children}
+        </LanguageProvider>
       </body>
     </html>
   );

@@ -7,11 +7,10 @@ import VkIcon from "@/assets/icons/VkIcon";
 import MessageFlowAnimation from "@/components/MessageFlowAnimation";
 import { useLanguage } from "@/context/LanguageContext";
 
-const API_URL = typeof process.env.NEXT_PUBLIC_API_URL === "string" ? process.env.NEXT_PUBLIC_API_URL : "http://localhost:4000";
 
 export default function Dashboard() {
   const { push } = useRouter();
-  const { locale, t, changeLocale } = useLanguage();
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState("routes");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
@@ -47,7 +46,7 @@ export default function Dashboard() {
     const refreshToken = localStorage.getItem("refresh_token");
     if (refreshToken) {
       try {
-        await fetch(`${API_URL}/api/auth/logout`, {
+        await fetch("/api/auth/logout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refreshToken })
@@ -81,7 +80,7 @@ export default function Dashboard() {
       }
 
       try {
-        const refreshRes = await fetch(`${API_URL}/api/auth/refresh`, {
+        const refreshRes = await fetch("/api/auth/refresh", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refreshToken })
@@ -113,10 +112,10 @@ export default function Dashboard() {
     setApiError("");
     try {
       // 1. Fetch connected chats pool
-      const chatsRes = await fetchWithAuth(`${API_URL}/api/chats`);
+      const chatsRes = await fetchWithAuth("/api/chats");
       
       // 2. Fetch forwarding pipelines (bridges)
-      const bridgesRes = await fetchWithAuth(`${API_URL}/api/bridges`);
+      const bridgesRes = await fetchWithAuth("/api/bridges");
 
       if (!chatsRes.ok || !bridgesRes.ok) {
         throw new Error("Failed to load dashboard data from API");
@@ -174,7 +173,7 @@ export default function Dashboard() {
 
     const interval = setInterval(async () => {
       try {
-        const chatsRes = await fetchWithAuth(`${API_URL}/api/chats`);
+        const chatsRes = await fetchWithAuth("/api/chats");
         if (chatsRes.ok) {
           const chatsData = await chatsRes.json();
           const currentCount = (chatsData.vk || []).length + (chatsData.tg || []).length;
@@ -200,7 +199,7 @@ export default function Dashboard() {
     setGeneratingCode(true);
 
     try {
-      const res = await fetchWithAuth(`${API_URL}/api/connect/code`, {
+      const res = await fetchWithAuth("/api/connect/code", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -225,7 +224,7 @@ export default function Dashboard() {
   /* Disconnect chat from pool */
   const handleDeleteChat = async (platform, chatId) => {
     try {
-      const res = await fetchWithAuth(`${API_URL}/api/chats/${platform}/${chatId}`, {
+      const res = await fetchWithAuth(`/api/chats/${platform}/${chatId}`, {
         method: "DELETE"
       });
       if (res.ok) {
@@ -248,7 +247,7 @@ export default function Dashboard() {
     const [targetPlatform, targetId] = newRouteTarget.split(":");
 
     try {
-      const res = await fetchWithAuth(`${API_URL}/api/bridges`, {
+      const res = await fetchWithAuth("/api/bridges", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -281,7 +280,7 @@ export default function Dashboard() {
   /* Reverse bridge direction flow by toggling is_reversed flag */
   const handleReverseDirection = async (route) => {
     try {
-      const res = await fetchWithAuth(`${API_URL}/api/bridges/${route.id}`, {
+      const res = await fetchWithAuth(`/api/bridges/${route.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json"
@@ -301,7 +300,7 @@ export default function Dashboard() {
   /* Toggle sender name prefix forwarding setting */
   const handleToggleShowAuthor = async (route) => {
     try {
-      const res = await fetchWithAuth(`${API_URL}/api/bridges/${route.id}`, {
+      const res = await fetchWithAuth(`/api/bridges/${route.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json"
@@ -321,7 +320,7 @@ export default function Dashboard() {
   /* Delete bridge */
   const handleDeleteRoute = async (id) => {
     try {
-      const res = await fetchWithAuth(`${API_URL}/api/bridges/${id}`, {
+      const res = await fetchWithAuth(`/api/bridges/${id}`, {
         method: "DELETE"
       });
       if (res.ok) {
@@ -341,45 +340,8 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-yale-blue-950 text-lime-cream-50 font-sans relative">
+    <div className="flex flex-col flex-grow bg-yale-blue-950 text-lime-cream-50 font-sans relative">
       <div className="looping-bg-grid" />
-
-      {/* Header */}
-      <header className="flex items-center justify-between px-8 py-5 border-b-4 border-black bg-yale-blue-900 z-10 gap-4 flex-wrap">
-        <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 bg-lime-cream-400 border-2 border-black flex items-center justify-center font-mono font-bold text-black text-lg shadow-[2px_2px_0px_#000]">
-            {t("logo")}
-          </div>
-          <h1 className="text-xl font-black uppercase tracking-tight text-lime-cream-100">
-            {t("title")}
-          </h1>
-        </div>
-
-        <div className="flex items-center space-x-4">
-          {/* Language Switcher Dropdown */}
-          <div className="relative">
-            <select
-              value={locale}
-              onChange={(e) => changeLocale(e.target.value)}
-              className="bg-yale-blue-950 border-2 border-black px-3 py-1.5 font-mono text-xs font-bold uppercase tracking-wider text-lime-cream-200 focus:outline-none cursor-pointer appearance-none pr-8"
-            >
-              <option value="ru">RU</option>
-              <option value="en">EN</option>
-            </select>
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none font-mono text-[10px] font-bold text-lime-cream-400">
-              ▼
-            </div>
-          </div>
-
-          <button
-            onClick={handleLogout}
-            type="button"
-            className="px-4 py-2 bg-rose-900 border-2 border-black text-sm font-bold uppercase tracking-wider neo-button text-lime-cream-100"
-          >
-            {t("logout")}
-          </button>
-        </div>
-      </header>
 
       {/* Main Container */}
       <main className="grow max-w-5xl w-full mx-auto p-6 md:p-10 z-10 flex flex-col">

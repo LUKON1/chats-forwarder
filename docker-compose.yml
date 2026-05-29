@@ -17,11 +17,8 @@ services:
       dockerfile: apps/admin-ui/Dockerfile
     expose:
       - "3000"
-    env_file:
-      - .env
     environment:
       - BACKEND_URL=http://bot-engine:4000
-      - HOSTNAME=0.0.0.0
     restart: unless-stopped
 
 volumes:

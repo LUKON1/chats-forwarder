@@ -8,14 +8,11 @@ export function getProxyAgent(targetDomain) {
   if (!proxyUrl) return undefined;
 
   if (proxyUrl.startsWith("socks")) {
-    console.log(`Using SOCKS proxy for ${targetDomain || "any"}: ${proxyUrl}`);
-    // Pass tls.servername to prevent 'unrecognized name' SSL alerts
-    return new SocksProxyAgent(proxyUrl, {
-      tls: targetDomain ? { servername: targetDomain } : undefined,
-    });
+    console.log(`Using SOCKS proxy for ${targetDomain || "any"}`);
+    return new SocksProxyAgent(proxyUrl);
   }
   if (proxyUrl.startsWith("http")) {
-    console.log(`Using HTTP/HTTPS proxy: ${proxyUrl}`);
+    console.log(`Using HTTP/HTTPS proxy`);
     return new HttpsProxyAgent(proxyUrl);
   }
 

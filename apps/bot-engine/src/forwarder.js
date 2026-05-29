@@ -5,6 +5,7 @@ import { mkdirSync, existsSync, unlinkSync, readFileSync, promises as fsPromises
 import { join } from "path";
 import crypto from "crypto";
 import nodeFetch from "node-fetch";
+import { getProxyAgent } from "./proxy.js";
 
 // Temporary directory inside container for file transfers
 const TMP_DIR = "/tmp/chat-forwarder";
@@ -23,10 +24,20 @@ async function uploadToVkServer(uploadUrl, filePath, filename, fieldName = "file
   const formData = new FormData();
   formData.append(fieldName, file);
 
-  const res = await fetch(uploadUrl, {
+  const hostname = new URL(uploadUrl).hostname;
+  const vkAgent = getProxyAgent(hostname);
+
+  const fetchOptions = {
     method: "POST",
     body: formData
-  });
+  };
+
+  if (vkAgent) {
+    fetchOptions.agent = vkAgent;
+  }
+
+  // Use nodeFetch because standard fetch does not support proxy agents easily
+  const res = await nodeFetch(uploadUrl, fetchOptions);
 
   if (!res.ok) throw new Error(`VK upload HTTP error: ${res.status}`);
   return res.json();
@@ -232,13 +243,24 @@ async function forwardToTg(ctx, bridge) {
 
       const prefix = bridge.show_author ? `${senderName}: ` : "";
       const messageText = message?.text || message?.caption || "";
-      const caption = messageText ? `${prefix}${messageText}` : (prefix ? prefix.slice(0, -2) : "");
       logText = messageText || "[TG-to-TG copy]";
 
-      // Fast-copy message on Telegram servers (no local download needed)
-      await bot.api.copyMessage(tgChatId, ctx.chat.id, message.message_id, {
-        caption: caption || undefined
-      });
+      if (message?.text) {
+        const fullText = `${prefix}${message.text}`;
+        const shiftedEntities = message.entities?.map(entity => ({
+          ...entity,
+          offset: entity.offset + prefix.length
+        }));
+
+        await bot.api.sendMessage(tgChatId, fullText, {
+          entities: shiftedEntities
+        });
+      } else {
+        const caption = messageText ? `${prefix}${messageText}` : (prefix ? prefix.slice(0, -2) : "");
+        await bot.api.copyMessage(tgChatId, ctx.chat.id, message.message_id, {
+          caption: caption || undefined
+        });
+      }
 
       console.log(`[Forward Success] bridge=${bridge.id} direction=tg_to_tg message="${logText}"`);
     }

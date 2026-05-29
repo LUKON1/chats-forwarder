@@ -72,6 +72,7 @@ function createFetchServer(fetchHandler, port) {
 }
 
 console.log("Chat Forwarder engine starting...");
+console.log("DEBUG: PROXY_URL in env =", process.env.PROXY_URL);
 
 // Start background listeners
 startVkListener(forwardVkToTg).then(() => {

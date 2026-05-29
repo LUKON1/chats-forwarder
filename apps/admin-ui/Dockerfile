@@ -1,5 +1,8 @@
 FROM oven/bun:latest AS base
 WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV HOSTNAME="0.0.0.0"
+ENV PORT=3000
 
 # Install dependencies
 FROM base AS installer
@@ -12,22 +15,26 @@ RUN bun install
 FROM base AS builder
 COPY --from=installer /app ./
 COPY apps/admin-ui ./apps/admin-ui
-# Set environment variables for build
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV NODE_ENV=production
-ENV NEXT_PUBLIC_API_URL=""
-# Bake backend URL for Next.js rewrites — must point to the bot-engine Docker service name
-ENV BACKEND_URL=http://bot-engine:4000
 RUN cd apps/admin-ui && bun run build
 
-# Production runner
-FROM base AS runner
-ENV NODE_ENV=production
-
-COPY --from=builder --chown=bun:bun /app/apps/admin-ui/.next/standalone ./
-COPY --from=builder --chown=bun:bun /app/apps/admin-ui/public ./apps/admin-ui/public
-COPY --from=builder --chown=bun:bun /app/apps/admin-ui/.next/static ./apps/admin-ui/.next/static
-
-USER bun
+# Development stage
+FROM installer AS dev
+ENV NODE_ENV=development
 EXPOSE 3000
-ENTRYPOINT ["bun", "apps/admin-ui/server.js"]
+ENTRYPOINT ["bun", "--cwd", "apps/admin-ui", "dev"]
+
+# Production runner
+FROM node:22-slim AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV HOSTNAME="0.0.0.0"
+ENV PORT=3000
+
+COPY --from=builder --chown=node:node /app/apps/admin-ui/.next/standalone ./
+COPY --from=builder --chown=node:node /app/apps/admin-ui/public ./apps/admin-ui/public
+COPY --from=builder --chown=node:node /app/apps/admin-ui/.next/static ./apps/admin-ui/.next/static
+
+USER node
+EXPOSE 3000
+ENTRYPOINT ["node", "apps/admin-ui/server.js"]
+
