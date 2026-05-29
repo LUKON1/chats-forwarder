@@ -8,7 +8,7 @@ export default function VkIcon({ className = "w-6 h-6", fillColor = "#ffffff", b
       className={className}
     >
       <g clipPath="url(#vk-clip)">
-        <mask id="vk-mask" width="256" height="256" x="0" y="0" maskUnits="userSpaceOnUse" style={{ maskType: "luminance" }}>
+        <mask id="vk-mask" width="256" height="256" x="0" y="0" maskUnits="userSpaceOnUse" className="[mask-type:luminance]">
           <path fill="#fff" d="M256 0H0v256h256V0z"/>
         </mask>
         <g mask="url(#vk-mask)">

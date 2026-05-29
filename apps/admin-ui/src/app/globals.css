@@ -123,6 +123,17 @@
 
   --font-sans: var(--font-geist-sans), Arial, sans-serif;
   --font-mono: var(--font-geist-mono), monospace;
+
+  --animate-pulseFast: pulse-fast 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
+  @keyframes pulse-fast {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.3;
+    }
+  }
 }
 
 /* Base styles for Neo-Brutalist look */
@@ -134,7 +145,7 @@ html, body {
 }
 
 /* Background animated texture simulating looping background without heavy layers */
-.looping-bg-grid {
+@utility looping-bg-grid {
   position: fixed;
   inset: 0;
   z-index: -1;
@@ -147,40 +158,88 @@ html, body {
 }
 
 /* Custom Neo-Brutalist styles */
-.neo-box {
+@utility neo-box {
   background-color: var(--color-yale-blue-900);
   border: 2px solid #000000;
   box-shadow: 4px 4px 0px 0px #000000;
   border-radius: 0 !important;
 }
 
-.neo-box-accent {
+@utility neo-box-accent {
   border: 2px solid #000000;
   box-shadow: 4px 4px 0px 0px #000000;
   border-radius: 0 !important;
 }
 
-.neo-button {
+@utility neo-button {
   border: 2px solid #000000;
   box-shadow: 3px 3px 0px 0px #000000;
   border-radius: 0 !important;
   transition: transform 0.05s ease, box-shadow 0.05s ease;
   cursor: pointer;
+
+  &:active {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0px 0px #000000;
+  }
 }
 
-.neo-button:active {
-  transform: translate(2px, 2px);
-  box-shadow: 1px 1px 0px 0px #000000;
-}
-
-.neo-input {
+@utility neo-input {
   border: 2px solid #000000;
   background-color: var(--color-yale-blue-950);
   color: var(--color-lime-cream-50);
   border-radius: 0 !important;
   outline: none;
+
+  &:focus {
+    border-color: var(--color-lime-cream-400);
+  }
 }
 
-.neo-input:focus {
-  border-color: var(--color-lime-cream-400);
+/* Step connector line between step cards */
+@utility step-connector {
+  position: absolute;
+  left: 27px;
+  top: 100%;
+  width: 2px;
+  height: 40px;
+  background: linear-gradient(
+    to bottom,
+    var(--color-lime-cream-400),
+    transparent
+  );
+  pointer-events: none;
+}
+
+/* Messenger bot link card */
+@utility messenger-card {
+  border: 2px solid #000000;
+  box-shadow: 4px 4px 0px 0px #000000;
+  border-radius: 0 !important;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  cursor: pointer;
+
+  &:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0px 0px #000000;
+  }
+
+  &:active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0px 0px #000000;
+  }
+}
+
+/* Animated code pill for /connect command */
+@utility code-pill {
+  font-family: var(--font-mono);
+  background-color: var(--color-yale-blue-950);
+  border: 2px solid var(--color-lime-cream-400);
+  color: var(--color-lime-cream-400);
+  border-radius: 0 !important;
+  padding: 4px 12px;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  box-shadow: 2px 2px 0px 0px var(--color-lime-cream-600);
+  display: inline-block;
 }

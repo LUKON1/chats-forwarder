@@ -2,168 +2,221 @@
 
 import { useEffect, useRef, useState } from "react";
 import { gsap } from "gsap";
+import dogGif from "@/assets/dog.gif";
+import birdGif from "@/assets/bird.gif";
 
-/* 
-  Neo-Brutalist 2-frame animation representing message carrier animals.
-  Animal 1: Running Dog (VK -> TG)
-  Animal 2: Flying Bird (TG -> VK)
-  Both carrying a letter.
-*/
-
-// Dog Frame 1 (legs apart)
-const DogFrame1 = () => (
-  <svg width="48" height="32" viewBox="0 0 48 32" className="fill-lime-cream-400 stroke-black stroke-2">
-    {/* Body */}
-    <rect x="12" y="10" width="22" height="12" />
-    {/* Head */}
-    <rect x="30" y="4" width="8" height="8" />
-    {/* Ears */}
-    <rect x="28" y="2" width="4" height="4" />
-    {/* Legs Frame 1 */}
-    <rect x="12" y="22" width="4" height="8" />
-    <rect x="28" y="22" width="4" height="8" />
-    {/* Tail */}
-    <rect x="8" y="10" width="4" height="4" />
-    {/* Letter in mouth */}
-    <rect x="38" y="8" width="8" height="6" className="fill-tropical-teal-400" />
-    <line x1="38" y1="8" x2="42" y2="11" className="stroke-black stroke-1" />
-    <line x1="46" y1="8" x2="42" y2="11" className="stroke-black stroke-1" />
-  </svg>
-);
-
-// Dog Frame 2 (legs together)
-const DogFrame2 = () => (
-  <svg width="48" height="32" viewBox="0 0 48 32" className="fill-lime-cream-400 stroke-black stroke-2">
-    {/* Body */}
-    <rect x="12" y="10" width="22" height="12" />
-    {/* Head */}
-    <rect x="30" y="4" width="8" height="8" />
-    {/* Ears */}
-    <rect x="28" y="2" width="4" height="4" />
-    {/* Legs Frame 2 (bent) */}
-    <rect x="16" y="22" width="4" height="6" />
-    <rect x="24" y="22" width="4" height="6" />
-    {/* Tail */}
-    <rect x="8" y="8" width="4" height="4" />
-    {/* Letter in mouth */}
-    <rect x="38" y="8" width="8" height="6" className="fill-tropical-teal-400" />
-    <line x1="38" y1="8" x2="42" y2="11" className="stroke-black stroke-1" />
-    <line x1="46" y1="8" x2="42" y2="11" className="stroke-black stroke-1" />
-  </svg>
-);
-
-// Bird Frame 1 (wings up)
-const BirdFrame1 = () => (
-  <svg width="48" height="32" viewBox="0 0 48 32" className="fill-tropical-teal-400 stroke-black stroke-2">
-    {/* Body */}
-    <rect x="14" y="12" width="20" height="10" />
-    {/* Head */}
-    <rect x="8" y="8" width="8" height="8" />
-    {/* Beak */}
-    <polygon points="8,12 2,14 8,16" className="fill-lime-cream-400" />
-    {/* Wing Up */}
-    <rect x="20" y="2" width="6" height="10" />
-    {/* Tail */}
-    <polygon points="34,14 40,10 40,20" />
-    {/* Letter in beak */}
-    <rect x="0" y="6" width="8" height="6" className="fill-lime-cream-50" />
-    <line x1="0" y1="6" x2="4" y2="9" className="stroke-black stroke-1" />
-    <line x1="8" y1="6" x2="4" y2="9" className="stroke-black stroke-1" />
-  </svg>
-);
-
-// Bird Frame 2 (wings down)
-const BirdFrame2 = () => (
-  <svg width="48" height="32" viewBox="0 0 48 32" className="fill-tropical-teal-400 stroke-black stroke-2">
-    {/* Body */}
-    <rect x="14" y="12" width="20" height="10" />
-    {/* Head */}
-    <rect x="8" y="8" width="8" height="8" />
-    {/* Beak */}
-    <polygon points="8,12 2,14 8,16" className="fill-lime-cream-400" />
-    {/* Wing Down */}
-    <rect x="20" y="22" width="6" height="10" />
-    {/* Tail */}
-    <polygon points="34,14 40,12 40,18" />
-    {/* Letter in beak */}
-    <rect x="0" y="6" width="8" height="6" className="fill-lime-cream-50" />
-    <line x1="0" y1="6" x2="4" y2="9" className="stroke-black stroke-1" />
-    <line x1="8" y1="6" x2="4" y2="9" className="stroke-black stroke-1" />
-  </svg>
-);
-
-const Carrier = ({ direction, sourcePlatform, frame }) => {
-  if (sourcePlatform === "vk") {
-    // VK: Dog running right, flip if moving left
-    const scaleX = direction === "left-to-right" ? 1 : -1;
-    return (
-      <div style={{ transform: `scaleX(${scaleX})` }} className="inline-block">
-        {frame === 1 ? <DogFrame1 /> : <DogFrame2 />}
-      </div>
-    );
-  } else {
-    // TG: Bird flying left, flip if moving right
-    const scaleX = direction === "left-to-right" ? -1 : 1;
-    return (
-      <div style={{ transform: `scaleX(${scaleX})` }} className="inline-block">
-        {frame === 1 ? <BirdFrame1 /> : <BirdFrame2 />}
-      </div>
-    );
-  }
-};
-
-export default function MessageFlowAnimation({ direction = "left-to-right", sourcePlatform = "vk", isMoving = true }) {
+export default function MessageFlowAnimation({
+  direction = "left-to-right",
+  sourcePlatform = "vk",
+  isMoving = true,
+  padding = 16,
+  iconSize = 32,
+  bgClass = "bg-yale-blue-950",
+}) {
   const containerRef = useRef(null);
-  const carrierRef = useRef(null);
-  const [frame, setFrame] = useState(1);
+  const animalRefs = useRef([]);
+  const [containerWidth, setContainerWidth] = useState(0);
 
-  // Handle 2-frame alternation loop (150ms interval)
+  // ResizeObserver to track container width dynamically
   useEffect(() => {
-    if (!isMoving) return;
-    const interval = setInterval(() => {
-      setFrame((f) => (f === 1 ? 2 : 1));
-    }, 150);
-    return () => clearInterval(interval);
-  }, [isMoving]);
+    if (!containerRef.current) return;
 
-  // Handle GSAP slide animation
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // Geometry calculations matching outer dimensions of the plate
+  const D = padding * 2 + iconSize; // Pipe diameter matches plate height
+  const gap = padding * 2;          // Distance between plate and pipe
+  const plateHeight = padding * 2 + iconSize;
+  
+  const y_bottom = plateHeight + gap + D / 2; // Center of horizontal pipe
+  const x_left = D / 2;
+  const x_right = containerWidth - D / 2;
+  const y_start = padding + iconSize / 2;    // Center of VK/TG icons
+
+  // GSAP animation loop for carrier conveyor chain
   useEffect(() => {
-    if (!isMoving || !carrierRef.current || !containerRef.current) return;
+    if (!isMoving || containerWidth === 0 || animalRefs.current.length === 0) return;
 
-    const containerWidth = containerRef.current.offsetWidth;
-    const startX = direction === "left-to-right" ? -50 : containerWidth;
-    const endX = direction === "left-to-right" ? containerWidth : -50;
+    const L_vertical = y_bottom - y_start;
+    const L_horizontal = x_right - x_left;
+    const L_total = L_vertical * 2 + L_horizontal;
 
-    // Reset position
-    gsap.set(carrierRef.current, { x: startX });
+    // Linear duration mapping based on total path length
+    const totalDuration = 7;
+    const duration_down = totalDuration * (L_vertical / L_total);
+    const duration_horizontal = totalDuration * (L_horizontal / L_total);
+    const duration_up = totalDuration * (L_vertical / L_total);
 
-    const anim = gsap.to(carrierRef.current, {
-      x: endX,
-      duration: 4,
-      repeat: -1,
-      ease: "none",
+    const timelines = [];
+    const totalAnimals = animalRefs.current.length;
+
+    animalRefs.current.forEach((el, index) => {
+      if (!el) return;
+
+      gsap.killTweensOf(el);
+      gsap.set(el, { xPercent: -50, yPercent: -50 });
+
+      const tl = gsap.timeline({
+        repeat: -1,
+        defaults: { ease: "none" },
+      });
+
+      if (direction === "left-to-right") {
+        gsap.set(el, { x: x_left, y: y_start });
+        tl.to(el, { y: y_bottom, duration: duration_down })
+          .to(el, { x: x_right, duration: duration_horizontal })
+          .to(el, { y: y_start, duration: duration_up });
+      } else {
+        gsap.set(el, { x: x_right, y: y_start });
+        tl.to(el, { y: y_bottom, duration: duration_down })
+          .to(el, { x: x_left, duration: duration_horizontal })
+          .to(el, { y: y_start, duration: duration_up });
+      }
+
+      // Offset starting progress of each animal to distribute them evenly
+      tl.progress(index / totalAnimals);
+      timelines.push(tl);
     });
 
     return () => {
-      anim.kill();
+      timelines.forEach((tl) => tl.kill());
     };
-  }, [direction, isMoving]);
+  }, [direction, isMoving, containerWidth, padding, iconSize, y_bottom, x_left, x_right, y_start]);
+
+  const isVk = sourcePlatform === "vk";
+  const isLtr = direction === "left-to-right";
+  // VK: Dog runs right (normal = ltr, flipped = rtl)
+  // TG: Bird flies left (normal = rtl, flipped = ltr)
+  const scaleX = isVk ? (isLtr ? 1 : -1) : (isLtr ? -1 : 1);
+  const gifSrc = isVk ? (dogGif.src || dogGif) : (birdGif.src || birdGif);
+
+  // Scaled dimensions of animals fitting the pipe diameter
+  const animalWidth = D * 0.9;
+  const animalHeight = D * 0.9;
+
+  // Segment heights
+  const verticalPipeHeight = y_bottom + D / 2 - plateHeight + 2;
+  const innerVerticalHeight = y_bottom - D / 2 - plateHeight + 2;
 
   return (
-    <div 
-      ref={containerRef} 
-      className="relative w-full h-12 bg-yale-blue-950 border-y-2 border-black overflow-hidden flex items-center"
+    <div
+      ref={containerRef}
+      className="absolute inset-0 pointer-events-none z-10 overflow-hidden"
     >
-      {/* Visual flow path indicators (dashed line) */}
-      <div className="absolute inset-x-0 h-0.5 border-t-2 border-dashed border-zinc-700"></div>
+      {/* Pipe background fill shapes */}
+      <div
+        style={{
+          left: 0,
+          width: D,
+          top: plateHeight - 2,
+          height: verticalPipeHeight,
+        }}
+        className={`absolute ${bgClass}`}
+      />
+      <div
+        style={{
+          left: containerWidth - D,
+          width: D,
+          top: plateHeight - 2,
+          height: verticalPipeHeight,
+        }}
+        className={`absolute ${bgClass}`}
+      />
+      <div
+        style={{
+          left: 0,
+          width: containerWidth,
+          top: y_bottom - D / 2,
+          height: D,
+        }}
+        className={`absolute ${bgClass}`}
+      />
 
-      <div 
-        ref={carrierRef} 
-        className="absolute pointer-events-none"
-        style={{ top: "8px" }}
-      >
-        <Carrier direction={direction} sourcePlatform={sourcePlatform} frame={frame} />
-      </div>
+      {/* External borders */}
+      <div
+        style={{
+          left: 0,
+          top: plateHeight - 2,
+          height: verticalPipeHeight,
+        }}
+        className="absolute border-l-2 border-black"
+      />
+      <div
+        style={{
+          right: 0,
+          top: plateHeight - 2,
+          height: verticalPipeHeight,
+        }}
+        className="absolute border-r-2 border-black"
+      />
+      <div
+        style={{
+          left: 0,
+          width: containerWidth,
+          top: y_bottom + D / 2,
+        }}
+        className="absolute border-b-2 border-black"
+      />
+
+      {/* Internal borders */}
+      <div
+        style={{
+          left: D,
+          top: plateHeight - 2,
+          height: innerVerticalHeight,
+        }}
+        className="absolute border-l-2 border-black"
+      />
+      <div
+        style={{
+          left: containerWidth - D,
+          top: plateHeight - 2,
+          height: innerVerticalHeight,
+        }}
+        className="absolute border-l-2 border-black"
+      />
+      <div
+        style={{
+          left: D - 2,
+          width: containerWidth - D * 2 + 4,
+          top: y_bottom - D / 2,
+        }}
+        className="absolute border-t-2 border-black"
+      />
+
+      {/* Conveyor Animals Chain */}
+      {Array.from({ length: 3 }).map((_, index) => (
+        <div
+          key={index}
+          ref={(el) => {
+            if (el) animalRefs.current[index] = el;
+          }}
+          className={`absolute pointer-events-none ${
+            scaleX === -1 ? "-scale-x-100" : ""
+          }`}
+          style={{
+            width: animalWidth,
+            height: animalHeight,
+            left: 0,
+            top: 0,
+            zIndex: 12,
+          }}
+        >
+          <img
+            src={gifSrc}
+            alt={sourcePlatform}
+            className="w-full h-full object-contain"
+          />
+        </div>
+      ))}
     </div>
   );
 }

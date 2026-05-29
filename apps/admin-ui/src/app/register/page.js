@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { gsap } from "gsap";
 import { useLanguage } from "@/context/LanguageContext";
-
 
 export default function Register() {
   const [username, setUsername] = useState("");
@@ -14,6 +14,17 @@ export default function Register() {
   const [success, setSuccess] = useState(false);
   const { push } = useRouter();
   const { t } = useLanguage();
+  const formRef = useRef(null);
+
+  // Entrance animation for the registration card
+  useEffect(() => {
+    gsap.from(formRef.current, {
+      y: -40,
+      opacity: 0,
+      duration: 0.8,
+      ease: "back.out(1.2)"
+    });
+  }, []);
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -64,7 +75,7 @@ export default function Register() {
       <div className="looping-bg-grid" />
 
       {/* Auth Box */}
-      <div className="w-full max-w-md bg-yale-blue-900 border-4 border-black p-8 shadow-[8px_8px_0px_#000000] relative">
+      <div ref={formRef} className="w-full max-w-md bg-yale-blue-900 border-4 border-black p-8 shadow-[8px_8px_0px_#000000] relative">
         {/* Top bar detail */}
         <div className="absolute top-0 inset-x-0 h-2 bg-tropical-teal-500 border-b-2 border-black" />
 

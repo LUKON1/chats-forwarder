@@ -1,18 +1,27 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import TelegramIcon from "@/assets/icons/TelegramIcon";
 import VkIcon from "@/assets/icons/VkIcon";
 import MessageFlowAnimation from "@/components/MessageFlowAnimation";
 import { useLanguage } from "@/context/LanguageContext";
+import Dropdown from "@/components/Dropdown";
+import { gsap } from "gsap";
 
+const platformOptions = [
+  { value: "vk", label: "VKontakte" },
+  { value: "tg", label: "Telegram" }
+];
 
 export default function Dashboard() {
   const { push } = useRouter();
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState("routes");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const tabContentRef = useRef(null);
+  const modalRef = useRef(null);
+  const modalDialogRef = useRef(null);
 
   /* Real database state for chats and routes */
   const [chats, setChats] = useState([]);
@@ -35,6 +44,85 @@ export default function Dashboard() {
 
   /* Modal configuration state */
   const [modalConfig, setModalConfig] = useState({ isOpen: false, title: "", message: "", type: "info" });
+
+  const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedCommand, setCopiedCommand] = useState(false);
+
+  // Copy PIN code to clipboard
+  const handleCopyCode = useCallback(() => {
+    if (!generatedCode) return;
+    navigator.clipboard.writeText(generatedCode);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 1500);
+  }, [generatedCode]);
+
+  // Copy full telegram connect command to clipboard
+  const handleCopyCommand = useCallback(() => {
+    if (!generatedCode) return;
+    navigator.clipboard.writeText(`/connect ${generatedCode}`);
+    setCopiedCommand(true);
+    setTimeout(() => setCopiedCommand(false), 1500);
+  }, [generatedCode]);
+
+  // Smooth page and tab transitions on activeTab/isLoading changes
+  useEffect(() => {
+    if (isLoading) return;
+
+    gsap.fromTo(tabContentRef.current,
+      { opacity: 0, y: 15 },
+      { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }
+    );
+
+    gsap.fromTo(".route-card, .chats-column",
+      { opacity: 0, y: 20 },
+      { opacity: 1, y: 0, duration: 0.5, stagger: 0.1, ease: "power2.out", delay: 0.1 }
+    );
+  }, [activeTab, isLoading]);
+
+  // Smooth dropdown height/fade entrance for form creation
+  useEffect(() => {
+    if (isCreatingRoute) {
+      gsap.fromTo(".create-route-form",
+        { height: 0, opacity: 0, y: -20, overflow: "hidden" },
+        { height: "auto", opacity: 1, y: 0, duration: 0.5, ease: "power3.out", clearProps: "overflow,height" }
+      );
+    }
+  }, [isCreatingRoute]);
+
+  // Handle modal opening and closing animation using GSAP
+  useEffect(() => {
+    if (!modalRef.current || !modalDialogRef.current) return;
+
+    if (modalConfig.isOpen) {
+      const tl = gsap.timeline();
+      tl.to(modalRef.current, {
+        autoAlpha: 1,
+        duration: 0.3,
+        ease: "power2.out"
+      });
+      tl.to(modalDialogRef.current, {
+        opacity: 1,
+        scale: 1,
+        y: 0,
+        duration: 0.4,
+        ease: "back.out(1.5)"
+      }, "-=0.15");
+    } else {
+      const tl = gsap.timeline();
+      tl.to(modalDialogRef.current, {
+        opacity: 0,
+        scale: 0.9,
+        y: 20,
+        duration: 0.3,
+        ease: "power2.in"
+      });
+      tl.to(modalRef.current, {
+        autoAlpha: 0,
+        duration: 0.25,
+        ease: "power2.in"
+      }, "-=0.15");
+    }
+  }, [modalConfig.isOpen]);
 
   /* Show custom notification/error modal */
   const showModal = useCallback((title, message, type = "info") => {
@@ -331,6 +419,18 @@ export default function Dashboard() {
     }
   };
 
+  const sourceChatOptions = chats.map((c) => ({
+    value: `${c.platform}:${c.id}`,
+    label: `${c.platform === "vk" ? "VK" : "Telegram"}: ${c.name}`
+  }));
+
+  const targetChatOptions = chats
+    .filter((c) => !newRouteSource || `${c.platform}:${c.id}` !== newRouteSource)
+    .map((c) => ({
+      value: `${c.platform}:${c.id}`,
+      label: `${c.platform === "vk" ? "VK" : "Telegram"}: ${c.name}`
+    }));
+
   if (!isAuthenticated) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-yale-blue-950 text-lime-cream-50 font-mono">
@@ -378,7 +478,7 @@ export default function Dashboard() {
         </div>
 
         {/* Tab content */}
-        <div className="grow">
+        <div ref={tabContentRef} className="grow">
           {isLoading ? (
             <div className="neo-box p-12 bg-yale-blue-900 text-center font-mono text-lime-cream-300">
               {t("sync_with_api")}
@@ -404,7 +504,7 @@ export default function Dashboard() {
 
                   {/* Create Route form */}
                   {isCreatingRoute && (
-                    <form onSubmit={handleCreateRoute} className="neo-box p-6 bg-yale-blue-900 space-y-6">
+                    <form onSubmit={handleCreateRoute} className="neo-box p-6 bg-yale-blue-900 space-y-6 create-route-form">
                       <h3 className="text-lg font-black uppercase border-b-2 border-black pb-2 text-lime-cream-200">
                         {t("config_pipeline")}
                       </h3>
@@ -427,39 +527,23 @@ export default function Dashboard() {
                           <label className="block text-xs font-bold uppercase tracking-wider text-lime-cream-300 mb-2">
                             {t("source_chat")}
                           </label>
-                          <select
+                          <Dropdown
                             value={newRouteSource}
-                            onChange={(e) => setNewRouteSource(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-yale-blue-950 border-2 border-black text-lime-cream-50 font-mono text-sm focus:outline-none focus:border-lime-cream-400 rounded-none"
-                            required
-                          >
-                            <option value="">{t("choose_source")}</option>
-                            {chats.map((c) => (
-                              <option key={`${c.platform}:${c.id}`} value={`${c.platform}:${c.id}`}>
-                                {c.platform === "vk" ? "VK" : "Telegram"}: {c.name}
-                              </option>
-                            ))}
-                          </select>
+                            onChange={(val) => setNewRouteSource(val)}
+                            options={sourceChatOptions}
+                            placeholder={t("choose_source")}
+                          />
                         </div>
                         <div>
                           <label className="block text-xs font-bold uppercase tracking-wider text-lime-cream-300 mb-2">
                             {t("target_chat")}
                           </label>
-                          <select
+                          <Dropdown
                             value={newRouteTarget}
-                            onChange={(e) => setNewRouteTarget(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-yale-blue-950 border-2 border-black text-lime-cream-50 font-mono text-sm focus:outline-none focus:border-lime-cream-400 rounded-none"
-                            required
-                          >
-                            <option value="">{t("choose_target")}</option>
-                            {chats
-                              .filter((c) => !newRouteSource || `${c.platform}:${c.id}` !== newRouteSource)
-                              .map((c) => (
-                                <option key={`${c.platform}:${c.id}`} value={`${c.platform}:${c.id}`}>
-                                  {c.platform === "vk" ? "VK" : "Telegram"}: {c.name}
-                                </option>
-                              ))}
-                          </select>
+                            onChange={(val) => setNewRouteTarget(val)}
+                            options={targetChatOptions}
+                            placeholder={t("choose_target")}
+                          />
                         </div>
                       </div>
 
@@ -499,7 +583,7 @@ export default function Dashboard() {
                       const flowDirection = route.isReversed ? "right-to-left" : "left-to-right";
 
                       return (
-                        <div key={route.id} className="neo-box bg-yale-blue-900 flex flex-col relative overflow-hidden">
+                        <div key={route.id} className="neo-box bg-yale-blue-900 flex flex-col relative overflow-hidden route-card">
                           {/* Top state accent bar */}
                           <div className="h-2 border-b-2 border-black bg-lime-cream-400" />
                           
@@ -538,9 +622,9 @@ export default function Dashboard() {
                               </div>
                             </div>
 
-                            {/* Pipeline Node visualization with Direction Arrow and GSAP Animation */}
-                            <div className="space-y-4">
-                              <div className="flex justify-between items-center bg-yale-blue-950 p-4 border-2 border-black">
+                            {/* Pipeline Node visualization with U-shape Conveyor Animation */}
+                            <div className="relative pb-28">
+                              <div className="flex justify-between items-center bg-yale-blue-950 p-4 border-2 border-black relative z-20">
                                 {/* Left Platform Node */}
                                 <div className="flex items-center space-x-3">
                                   {route.sourcePlatform === "vk" ? (
@@ -588,11 +672,13 @@ export default function Dashboard() {
                                 </div>
                               </div>
 
-                              {/* Message Flow visual animation running Dog/Bird */}
+                              {/* Message Flow visual animation running Dog/Bird inside U-shape pipe */}
                               <MessageFlowAnimation 
                                 direction={flowDirection} 
                                 sourcePlatform={route.isReversed ? route.targetPlatform : route.sourcePlatform}
                                 isMoving={true} 
+                                padding={16}
+                                iconSize={32}
                               />
                             </div>
                           </div>
@@ -617,7 +703,7 @@ export default function Dashboard() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       {/* VKontakte column */}
-                      <div className="neo-box p-6 bg-yale-blue-900 flex flex-col space-y-4">
+                      <div className="neo-box p-6 bg-yale-blue-900 flex flex-col space-y-4 chats-column">
                         <div className="flex items-center space-x-2 border-b-2 border-black pb-3">
                           <VkIcon className="w-6 h-6" />
                           <h3 className="text-lg font-black uppercase text-lime-cream-100">VKontakte</h3>
@@ -649,7 +735,7 @@ export default function Dashboard() {
                       </div>
 
                       {/* Telegram column */}
-                      <div className="neo-box p-6 bg-yale-blue-900 flex flex-col space-y-4">
+                      <div className="neo-box p-6 bg-yale-blue-900 flex flex-col space-y-4 chats-column">
                         <div className="flex items-center space-x-2 border-b-2 border-black pb-3">
                           <TelegramIcon className="w-6 h-6" />
                           <h3 className="text-lg font-black uppercase text-lime-cream-100">Telegram</h3>
@@ -695,14 +781,11 @@ export default function Dashboard() {
                           <label className="block text-xs font-bold uppercase tracking-wider text-lime-cream-300 mb-2">
                             {t("select_platform_code")}
                           </label>
-                          <select
+                          <Dropdown
                             value={codePlatform}
-                            onChange={(e) => setCodePlatform(e.target.value)}
-                            className="w-full px-4 py-2.5 bg-yale-blue-950 border-2 border-black text-lime-cream-50 font-mono text-sm focus:outline-none focus:border-lime-cream-400 rounded-none appearance-none"
-                          >
-                            <option value="vk">VKontakte</option>
-                            <option value="tg">Telegram</option>
-                          </select>
+                            onChange={(val) => setCodePlatform(val)}
+                            options={platformOptions}
+                          />
                         </div>
                         <button
                           type="submit"
@@ -719,11 +802,30 @@ export default function Dashboard() {
                           <div className="text-xs font-bold uppercase tracking-wider text-lime-cream-400">
                             {t("your_code")}:
                           </div>
-                          <div className="font-mono text-3xl font-black tracking-widest text-tropical-teal-400 bg-black py-2 px-4 border border-zinc-800 text-center select-all">
-                            {generatedCode}
+                          <div 
+                            onClick={handleCopyCode}
+                            title={t("click_to_copy") || "Click to copy"}
+                            className={`font-mono text-3xl font-black tracking-widest bg-black py-2 px-4 border text-center cursor-pointer select-none transition-colors duration-150 ${
+                              copiedCode 
+                                ? "text-lime-cream-400 border-lime-cream-400 scale-[1.02]" 
+                                : "text-tropical-teal-400 border-zinc-800 hover:border-tropical-teal-400"
+                            }`}
+                          >
+                            {copiedCode ? (t("copied") || "Copied!") : generatedCode}
                           </div>
                           <p className="text-[11px] font-medium text-lime-cream-300 leading-relaxed pt-1">
-                            {t("code_instruction")} <span className="font-mono bg-black text-lime-cream-100 px-1 border border-zinc-800">/connect {generatedCode}</span>
+                            {t("code_instruction")}{" "}
+                            <span 
+                              onClick={handleCopyCommand}
+                              title={t("click_to_copy") || "Click to copy"}
+                              className={`font-mono bg-black px-1.5 py-0.5 border cursor-pointer select-none transition-colors duration-150 inline-block ${
+                                copiedCommand 
+                                  ? "text-lime-cream-400 border-lime-cream-400 scale-[1.02]" 
+                                  : "text-lime-cream-100 border-zinc-800 hover:border-tropical-teal-400"
+                              }`}
+                            >
+                              {copiedCommand ? (t("copied") || "Copied!") : `/connect ${generatedCode}`}
+                            </span>
                           </p>
                           <div className="text-[10px] text-zinc-500 font-mono pt-1">
                             * {t("code_expires")}
@@ -745,30 +847,34 @@ export default function Dashboard() {
       </footer>
 
       {/* Neo-brutalist Modal */}
-      {modalConfig.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md bg-yale-blue-900 border-4 border-black p-6 shadow-[8px_8px_0px_#000] relative">
-            <div className={`absolute top-0 inset-x-0 h-2 border-b-2 border-black ${modalConfig.type === "error" ? "bg-rose-600" : "bg-tropical-teal-500"}`} />
-            
-            <h3 className="text-lg font-black uppercase text-lime-cream-100 mb-2 mt-2">
-              {modalConfig.title}
-            </h3>
-            <p className="text-sm font-mono text-lime-cream-300 mb-6 whitespace-pre-line leading-relaxed">
-              {modalConfig.message}
-            </p>
-            
-            <div className="flex justify-end">
-              <button
-                onClick={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
-                type="button"
-                className="px-6 py-2.5 bg-lime-cream-400 text-black font-black uppercase tracking-wider border-2 border-black neo-button text-xs"
-              >
-                {t("close")}
-              </button>
-            </div>
+      <div 
+        ref={modalRef}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 invisible opacity-0"
+      >
+        <div 
+          ref={modalDialogRef}
+          className="w-full max-w-md bg-yale-blue-900 border-4 border-black p-6 shadow-[8px_8px_0px_#000] relative opacity-0 scale-90"
+        >
+          <div className={`absolute top-0 inset-x-0 h-2 border-b-2 border-black ${modalConfig.type === "error" ? "bg-rose-600" : "bg-tropical-teal-500"}`} />
+          
+          <h3 className="text-lg font-black uppercase text-lime-cream-100 mb-2 mt-2">
+            {modalConfig.title}
+          </h3>
+          <p className="text-sm font-mono text-lime-cream-300 mb-6 whitespace-pre-line leading-relaxed">
+            {modalConfig.message}
+          </p>
+          
+          <div className="flex justify-end">
+            <button
+              onClick={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
+              type="button"
+              className="px-6 py-2.5 bg-lime-cream-400 text-black font-black uppercase tracking-wider border-2 border-black neo-button text-xs"
+            >
+              {t("close")}
+            </button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

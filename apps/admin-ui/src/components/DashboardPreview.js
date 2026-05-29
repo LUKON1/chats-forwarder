@@ -85,7 +85,7 @@ export default function DashboardPreview() {
           {t("dashboard_preview")}
         </h3>
         <p className="text-xs text-lime-cream-400 font-mono mt-1">
-          * Try clicking buttons to test the interface mechanics.
+          {t("dashboard_preview_desc")}
         </p>
       </div>
 
@@ -152,9 +152,9 @@ export default function DashboardPreview() {
                     </div>
                   </div>
 
-                  {/* Flow Visualization */}
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center bg-yale-blue-900 p-3 border-2 border-black text-xs">
+                  {/* Flow Visualization with U-shape Conveyor */}
+                  <div className="relative pb-28">
+                    <div className="flex justify-between items-center bg-yale-blue-900 p-3 border-2 border-black text-xs relative z-20">
                       {/* Source */}
                       <div className="flex items-center space-x-2">
                         {route.sourcePlatform === "vk" ? <VkIcon className="w-6 h-6" /> : <TelegramIcon className="w-6 h-6" />}
@@ -184,11 +184,14 @@ export default function DashboardPreview() {
                       </div>
                     </div>
 
-                    {/* GSAP Run Animation inside Preview */}
+                    {/* GSAP Run Animation inside Preview inside conveyor pipe */}
                     <MessageFlowAnimation 
                       direction={flowDirection} 
                       sourcePlatform={route.isReversed ? route.targetPlatform : route.sourcePlatform}
                       isMoving={true} 
+                      padding={12}
+                      iconSize={24}
+                      bgClass="bg-yale-blue-900"
                     />
                   </div>
                 </div>

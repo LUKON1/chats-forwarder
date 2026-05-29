@@ -1,10 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
 import Logo from "@/components/Logo";
+import Dropdown from "@/components/Dropdown";
+import { gsap } from "gsap";
+
+const languageOptions = [
+  { value: "ru", label: "RU" },
+  { value: "en", label: "EN" }
+];
 
 /**
  * Global Header navigation component with mobile adaptation
@@ -13,15 +20,41 @@ export default function Header() {
   const pathname = usePathname();
   const { push } = useRouter();
   const { locale, t, changeLocale } = useLanguage();
+  const [mounted, setMounted] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const mobileMenuRef = useRef(null);
 
   /* Check authentication status on mount and path changes */
   useEffect(() => {
+    setMounted(true);
     const loggedIn = localStorage.getItem("is_logged_in") === "true";
     setIsLoggedIn(loggedIn);
     setIsMenuOpen(false);
   }, [pathname]);
+
+  // Handle mobile menu slide/fade transition with GSAP
+  useEffect(() => {
+    if (!mobileMenuRef.current) return;
+
+    if (isMenuOpen) {
+      gsap.killTweensOf(mobileMenuRef.current);
+      gsap.to(mobileMenuRef.current, {
+        autoAlpha: 1,
+        height: "auto",
+        duration: 0.35,
+        ease: "power2.out"
+      });
+    } else {
+      gsap.killTweensOf(mobileMenuRef.current);
+      gsap.to(mobileMenuRef.current, {
+        autoAlpha: 0,
+        height: 0,
+        duration: 0.25,
+        ease: "power2.in"
+      });
+    }
+  }, [isMenuOpen]);
 
   /* Handle system log out */
   const handleLogout = useCallback(async () => {
@@ -58,22 +91,15 @@ export default function Header() {
       {/* Desktop Navigation Controls */}
       <div className="hidden md:flex items-center space-x-4">
         {/* Language Switcher */}
-        <div className="relative">
-          <select
-            value={locale}
-            onChange={(e) => changeLocale(e.target.value)}
-            className="bg-yale-blue-950 border-2 border-black px-3 py-1.5 font-mono text-xs font-bold uppercase tracking-wider text-lime-cream-200 focus:outline-none cursor-pointer appearance-none pr-8"
-          >
-            <option value="ru">RU</option>
-            <option value="en">EN</option>
-          </select>
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none font-mono text-[10px] font-bold text-lime-cream-400">
-            ▼
-          </div>
-        </div>
+        <Dropdown
+          value={locale}
+          onChange={changeLocale}
+          options={languageOptions}
+          className="w-20"
+        />
 
-        {/* Auth-dependent Navigation */}
-        {isLoggedIn ? (
+        {/* Auth-dependent Navigation — rendered only after client mount to avoid hydration mismatch */}
+        {mounted && (isLoggedIn ? (
           <>
             {pathname !== "/dashboard" && (
               <Link
@@ -126,7 +152,7 @@ export default function Header() {
               </Link>
             )}
           </>
-        )}
+        ))}
       </div>
 
       {/* Mobile Burger Button */}
@@ -143,31 +169,28 @@ export default function Header() {
       </button>
 
       {/* Mobile Navigation Dropdown */}
-      {isMenuOpen && (
-        <div className="absolute top-full left-0 right-0 bg-yale-blue-900 border-b-4 border-black p-6 flex flex-col space-y-4 shadow-[0_8px_0px_rgba(0,0,0,0.5)] z-40 md:hidden">
+      <div 
+        ref={mobileMenuRef}
+        className="absolute top-full left-0 right-0 bg-yale-blue-900 shadow-[0_8px_0px_rgba(0,0,0,0.5)] z-40 md:hidden invisible opacity-0 overflow-hidden"
+        style={{ height: 0 }}
+      >
+        <div className="px-6 py-6 border-b-4 border-black flex flex-col space-y-4">
           {/* Language Switcher in Mobile Menu */}
           <div className="flex items-center justify-between border-b border-black pb-3">
             <span className="font-mono text-xs font-bold uppercase tracking-wider text-lime-cream-300">
               {locale === "ru" ? "Язык / Language" : "Language / Язык"}
             </span>
-            <div className="relative">
-              <select
-                value={locale}
-                onChange={(e) => changeLocale(e.target.value)}
-                className="bg-yale-blue-950 border-2 border-black px-3 py-1.5 font-mono text-xs font-bold uppercase tracking-wider text-lime-cream-200 focus:outline-none cursor-pointer appearance-none pr-8"
-              >
-                <option value="ru">RU</option>
-                <option value="en">EN</option>
-              </select>
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none font-mono text-[10px] font-bold text-lime-cream-400">
-                ▼
-              </div>
-            </div>
+            <Dropdown
+              value={locale}
+              onChange={changeLocale}
+              options={languageOptions}
+              className="w-20"
+            />
           </div>
 
-          {/* Links List */}
+          {/* Links List — rendered only after client mount to avoid hydration mismatch */}
           <div className="flex flex-col space-y-3 pt-2">
-            {isLoggedIn ? (
+            {mounted && (isLoggedIn ? (
               <>
                 {pathname !== "/dashboard" && (
                   <Link
@@ -228,10 +251,10 @@ export default function Header() {
                   </Link>
                 )}
               </>
-            )}
+            ))}
           </div>
         </div>
-      )}
+      </div>
     </header>
   );
 }
