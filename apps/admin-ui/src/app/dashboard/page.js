@@ -131,21 +131,17 @@ export default function Dashboard() {
 
   /* Handle log out */
   const handleLogout = useCallback(async () => {
-    const refreshToken = localStorage.getItem("refresh_token");
-    if (refreshToken) {
-      try {
-        await fetch("/api/auth/logout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refreshToken })
-        });
-      } catch (err) {
-        console.error("Failed to notify server about logout:", err);
-      }
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include"
+      });
+    } catch (err) {
+      console.error("Failed to notify server about logout:", err);
     }
     localStorage.removeItem("is_logged_in");
     localStorage.removeItem("token");
-    localStorage.removeItem("refresh_token");
     localStorage.removeItem("user");
     push("/login");
   }, [push]);
@@ -161,17 +157,11 @@ export default function Dashboard() {
     let res = await fetch(url, options);
 
     if (res.status === 401) {
-      const refreshToken = localStorage.getItem("refresh_token");
-      if (!refreshToken) {
-        handleLogout();
-        throw new Error("Unauthorized");
-      }
-
       try {
         const refreshRes = await fetch("/api/auth/refresh", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refreshToken })
+          credentials: "include"
         });
 
         if (refreshRes.ok) {

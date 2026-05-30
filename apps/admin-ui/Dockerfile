@@ -13,6 +13,8 @@ RUN bun install
 
 # Build the app
 FROM base AS builder
+ARG BACKEND_URL
+ENV BACKEND_URL=$BACKEND_URL
 COPY --from=installer /app ./
 COPY apps/admin-ui ./apps/admin-ui
 RUN cd apps/admin-ui && bun run build

@@ -4,19 +4,17 @@ services:
       context: .
       dockerfile: apps/bot-engine/Dockerfile
       target: dev
-      network: host
+    network_mode: host
     volumes:
       # Mount the whole repository for live-reload
       - .:/app
       # Preserve container node_modules from being overridden by the host
       - /app/node_modules
       - /app/apps/bot-engine/node_modules
-    ports:
-      - "4000:4000"
+    expose:
+      - "4000"
     env_file:
       - .env
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   admin-ui:
@@ -24,17 +22,15 @@ services:
       context: .
       dockerfile: apps/admin-ui/Dockerfile
       target: dev
-      network: host
+    network_mode: host
     volumes:
       - .:/app
       - /app/node_modules
       - /app/apps/admin-ui/node_modules
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     environment:
-      - BACKEND_URL=http://bot-engine:4000
+      - BACKEND_URL=http://localhost:4000
     depends_on:
       - bot-engine
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     restart: unless-stopped

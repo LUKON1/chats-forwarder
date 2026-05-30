@@ -1,5 +1,11 @@
 import { mkdirSync, existsSync } from "fs";
 import { dirname } from "path";
+import { createHash } from "crypto";
+
+// Helper to hash refresh tokens before storing in SQLite
+function hashToken(token) {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 let Database;
 
@@ -259,28 +265,34 @@ export const dbHelper = {
 
   // Refresh Token operations
   addRefreshToken: (token, userId) => {
+    // Delete any old refresh tokens for this user first (Refresh Token Rotation preparation)
+    db.query("DELETE FROM refresh_tokens WHERE user_id = $userId").run({ $userId: userId });
+
+    const hashed = hashToken(token);
     const query = db.query(`
       INSERT INTO refresh_tokens (token, user_id, expires_at)
       VALUES ($token, $userId, datetime('now', '+7 days'))
       RETURNING *
     `);
     return query.get({
-      $token: token,
+      $token: hashed,
       $userId: userId
     });
   },
 
   validateRefreshToken: (token) => {
+    const hashed = hashToken(token);
     const query = db.query(`
       SELECT * FROM refresh_tokens
       WHERE token = $token AND expires_at > datetime('now')
     `);
-    return query.get({ $token: token });
+    return query.get({ $token: hashed });
   },
 
   deleteRefreshToken: (token) => {
+    const hashed = hashToken(token);
     const query = db.query("DELETE FROM refresh_tokens WHERE token = $token");
-    query.run({ $token: token });
+    query.run({ $token: hashed });
   },
 
   clearExpiredRefreshTokens: () => {

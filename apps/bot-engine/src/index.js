@@ -7,6 +7,79 @@ import { forwardVkToTg, forwardTgToVk } from "./forwarder.js";
 import { dbHelper } from "./db.js";
 import { generateAccessToken, generateRefreshToken, verifyAccessToken, verifyRefreshToken } from "./jwt.js";
 
+// In-memory request store for rate limiting
+const ipRequests = new Map();
+
+// Simple in-memory rate limiter middleware
+function rateLimit(options = {}) {
+  const windowMs = options.windowMs || 60000;
+  const max = options.max || 100;
+  const message = options.message || "Too many requests, please try again later.";
+
+  // Periodic cleanup to avoid memory leaks
+  setInterval(() => {
+    const now = Date.now();
+    for (const [ip, data] of ipRequests.entries()) {
+      if (now - data.resetTime > windowMs) {
+        ipRequests.delete(ip);
+      }
+    }
+  }, windowMs);
+
+  return (req) => {
+    const forwardedFor = req.headers.get("x-forwarded-for");
+    const ip = forwardedFor ? forwardedFor.split(",")[0].trim() : "127.0.0.1";
+    const now = Date.now();
+
+    if (!ipRequests.has(ip)) {
+      ipRequests.set(ip, {
+        count: 1,
+        resetTime: now + windowMs,
+      });
+      return null;
+    }
+
+    const clientData = ipRequests.get(ip);
+    if (now > clientData.resetTime) {
+      clientData.count = 1;
+      clientData.resetTime = now + windowMs;
+      return null;
+    }
+
+    clientData.count++;
+    if (clientData.count > max) {
+      return new Response(JSON.stringify({ error: message }), {
+        status: 429,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+
+    return null;
+  };
+}
+
+// Helper to parse cookies from Request headers
+function getCookie(req, name) {
+  const cookieHeader = req.headers.get("cookie");
+  if (!cookieHeader) return null;
+  const cookies = cookieHeader.split(";");
+  for (const cookie of cookies) {
+    const parts = cookie.split("=");
+    const key = parts[0].trim();
+    if (key === name) {
+      return parts.slice(1).join("=").trim();
+    }
+  }
+  return null;
+}
+
+// Configured auth rate limiter
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 15,
+  message: "Too many login or registration attempts. Please try again in a minute."
+});
+
 const API_PORT = process.env.API_PORT || 4000;
 const API_SECRET = process.env.API_SECRET || (() => {
   const generatedSecret = crypto.randomUUID();
@@ -26,6 +99,10 @@ function createFetchServer(fetchHandler, port) {
         } else if (value !== undefined) {
           headers.set(key, value);
         }
+      }
+
+      if (!headers.has("x-forwarded-for") && nodeReq.socket.remoteAddress) {
+        headers.set("x-forwarded-for", nodeReq.socket.remoteAddress);
       }
 
       // 2. Build full URL
@@ -103,16 +180,32 @@ createFetchServer(async (req) => {
     const path = url.pathname;
     const method = req.method;
 
-    // CORS Headers for API requests
+    // CORS Headers for API requests supporting cookies
+    const origin = req.headers.get("origin");
     const headers = {
-      "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Content-Type": "application/json"
     };
 
+    if (origin) {
+      headers["Access-Control-Allow-Origin"] = origin;
+      headers["Access-Control-Allow-Credentials"] = "true";
+    } else {
+      headers["Access-Control-Allow-Origin"] = "*";
+    }
+
     if (method === "OPTIONS") {
       return new Response(null, { headers });
+    }
+
+    // Apply Rate Limiter to login and register routes
+    if (path.startsWith("/api/auth/login") || path.startsWith("/api/auth/register")) {
+      const limitResponse = authLimiter(req);
+      if (limitResponse) {
+        Object.entries(headers).forEach(([k, v]) => limitResponse.headers.set(k, v));
+        return limitResponse;
+      }
     }
 
     try {
@@ -143,15 +236,20 @@ createFetchServer(async (req) => {
         const accessToken = generateAccessToken({ id: user.id, username: user.username });
         const refreshToken = generateRefreshToken({ id: user.id, username: user.username });
 
-        // Save refresh token to SQLite database
+        // Save refresh token hash to SQLite database (and clear old ones)
         dbHelper.addRefreshToken(refreshToken, user.id);
+
+        const resHeaders = new Headers(headers);
+        resHeaders.append(
+          "Set-Cookie",
+          `refresh_token=${refreshToken}; HttpOnly; Path=/api/auth; SameSite=Strict; Max-Age=604800; Secure`
+        );
 
         return new Response(JSON.stringify({
           success: true,
           accessToken,
-          refreshToken,
           user: { id: user.id, username: user.username }
-        }), { headers });
+        }), { headers: resHeaders });
       }
 
       // 2. PUBLIC ROUTE: Auth register (using Bun.password)
@@ -161,9 +259,12 @@ createFetchServer(async (req) => {
           return new Response(JSON.stringify({ error: "Missing required fields" }), { status: 400, headers });
         }
 
-        // Validate lengths
+        // Validate lengths and characters
         if (username.length < 3 || username.length > 20) {
           return new Response(JSON.stringify({ error: "Username must be between 3 and 20 characters long" }), { status: 400, headers });
+        }
+        if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+          return new Response(JSON.stringify({ error: "Username can only contain letters, numbers, underscores and hyphens" }), { status: 400, headers });
         }
         if (password.length < 6) {
           return new Response(JSON.stringify({ error: "Password must be at least 6 characters long" }), { status: 400, headers });
@@ -184,41 +285,57 @@ createFetchServer(async (req) => {
         }), { headers });
       }
 
-      // PUBLIC ROUTE: Auth token refresh
+      // PUBLIC ROUTE: Auth token refresh (HttpOnly cookie and Token Rotation)
       if (path === "/api/auth/refresh" && method === "POST") {
-        const { refreshToken } = await req.json();
+        const refreshToken = getCookie(req, "refresh_token");
         if (!refreshToken) {
-          return new Response(JSON.stringify({ error: "Missing refresh token" }), { status: 400, headers });
+          return new Response(JSON.stringify({ error: "Missing refresh token" }), { status: 401, headers });
         }
 
         // Verify refresh token cryptographically
         const decoded = verifyRefreshToken(refreshToken);
         if (!decoded || !decoded.id) {
-          return new Response(JSON.stringify({ error: "Invalid refresh token" }), { status: 401, headers });
+          const resHeaders = new Headers(headers);
+          resHeaders.append("Set-Cookie", "refresh_token=; HttpOnly; Path=/api/auth; SameSite=Strict; Max-Age=0; Secure");
+          return new Response(JSON.stringify({ error: "Invalid refresh token" }), { status: 401, headers: resHeaders });
         }
 
-        // Validate token exists in database
+        // Validate token exists in database (compares hash)
         const dbRecord = dbHelper.validateRefreshToken(refreshToken);
         if (!dbRecord) {
-          return new Response(JSON.stringify({ error: "Expired or revoked refresh token" }), { status: 401, headers });
+          const resHeaders = new Headers(headers);
+          resHeaders.append("Set-Cookie", "refresh_token=; HttpOnly; Path=/api/auth; SameSite=Strict; Max-Age=0; Secure");
+          return new Response(JSON.stringify({ error: "Expired or revoked refresh token" }), { status: 401, headers: resHeaders });
         }
 
-        // Generate new access token
+        // Token Rotation: Generate new access AND refresh tokens
         const accessToken = generateAccessToken({ id: decoded.id, username: decoded.username });
+        const newRefreshToken = generateRefreshToken({ id: decoded.id, username: decoded.username });
+        dbHelper.addRefreshToken(newRefreshToken, decoded.id);
+
+        const resHeaders = new Headers(headers);
+        resHeaders.append(
+          "Set-Cookie",
+          `refresh_token=${newRefreshToken}; HttpOnly; Path=/api/auth; SameSite=Strict; Max-Age=604800; Secure`
+        );
 
         return new Response(JSON.stringify({
           success: true,
           accessToken
-        }), { headers });
+        }), { headers: resHeaders });
       }
 
-      // PUBLIC ROUTE: Auth logout (revokes refresh token)
+      // PUBLIC ROUTE: Auth logout (revokes refresh token and clears cookie)
       if (path === "/api/auth/logout" && method === "POST") {
-        const { refreshToken } = await req.json();
+        const refreshToken = getCookie(req, "refresh_token");
         if (refreshToken) {
           dbHelper.deleteRefreshToken(refreshToken);
         }
-        return new Response(JSON.stringify({ success: true }), { headers });
+        
+        const resHeaders = new Headers(headers);
+        resHeaders.append("Set-Cookie", "refresh_token=; HttpOnly; Path=/api/auth; SameSite=Strict; Max-Age=0; Secure");
+        
+        return new Response(JSON.stringify({ success: true }), { headers: resHeaders });
       }
 
       // 3. MIDDLEWARE: Verify API_SECRET key or JWT user token for all other routes

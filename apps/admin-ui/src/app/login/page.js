@@ -45,7 +45,8 @@ export default function Login() {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password }),
+        credentials: "include"
       });
 
       const data = await res.json();
@@ -53,7 +54,6 @@ export default function Login() {
       if (res.ok && data.success) {
         localStorage.setItem("is_logged_in", "true");
         localStorage.setItem("token", data.accessToken);
-        localStorage.setItem("refresh_token", data.refreshToken);
         localStorage.setItem("user", JSON.stringify(data.user));
         push("/dashboard");
       } else {
