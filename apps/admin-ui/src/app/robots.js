@@ -1,7 +1,8 @@
 import { headers } from 'next/headers';
 
-export default function robots() {
-  const host = `https://${headers().get('host')}`;
+export default async function robots() {
+  const reqHeaders = await headers();
+  const host = `https://${reqHeaders.get('host')}`;
 
   return {
     rules: {

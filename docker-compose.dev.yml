@@ -27,6 +27,7 @@ services:
       - .:/app
       - /app/node_modules
       - /app/apps/admin-ui/node_modules
+      - /app/apps/admin-ui/.next  
     expose:
       - "3000"
     environment:

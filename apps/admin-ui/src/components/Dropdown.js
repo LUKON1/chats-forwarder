@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { gsap } from "gsap";
+import { useLanguage } from "@/context/LanguageContext";
 
 /**
  * Custom Dropdown component built in neo-brutalist style
@@ -14,6 +15,7 @@ import { gsap } from "gsap";
  * @param {string} [props.className] - Extra wrapping CSS classes
  */
 export default function Dropdown({ value, onChange, options, placeholder = "Select option", className = "" }) {
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
 
@@ -83,7 +85,7 @@ export default function Dropdown({ value, onChange, options, placeholder = "Sele
       >
         {options.length === 0 ? (
           <div className="px-4 py-2.5 text-zinc-500 text-xs italic">
-            No options available
+            {t("no_options")}
           </div>
         ) : (
           options.map((option) => {

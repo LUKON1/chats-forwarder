@@ -8,6 +8,7 @@ import MessageFlowAnimation from "@/components/MessageFlowAnimation";
 import { useLanguage } from "@/context/LanguageContext";
 import Dropdown from "@/components/Dropdown";
 import { gsap } from "gsap";
+import FlowArrowIcon from "@/assets/icons/FlowArrowIcon";
 
 const platformOptions = [
   { value: "vk", label: "VKontakte" },
@@ -637,10 +638,10 @@ export default function Dashboard() {
                                 <button
                                   onClick={() => handleReverseDirection(route)}
                                   type="button"
-                                  title="Развернуть направление пересылки"
-                                  className="w-10 h-10 bg-tropical-teal-500 text-black border-2 border-black flex items-center justify-center font-mono font-black neo-button text-xl animate-pulseFast"
+                                  title={t("reverse_direction")}
+                                  className="w-10 h-10 bg-tropical-teal-500 text-black border-2 border-black flex items-center justify-center neo-button"
                                 >
-                                  {route.isReversed ? "←" : "→"}
+                                  <FlowArrowIcon reversed={route.isReversed} className="w-6 h-6" />
                                 </button>
 
                                 {/* Right Platform Node */}
@@ -786,7 +787,7 @@ export default function Dashboard() {
                         </button>
                       </form>
 
-                      {/* Display сode */}
+                      {/* Display code */}
                       {generatedCode && (
                         <div className="p-5 bg-yale-blue-950 border-2 border-black flex flex-col justify-center space-y-2">
                           <div className="text-xs font-bold uppercase tracking-wider text-lime-cream-400">

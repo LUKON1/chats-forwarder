@@ -6,6 +6,8 @@ import TelegramIcon from "@/assets/icons/TelegramIcon";
 import VkIcon from "@/assets/icons/VkIcon";
 import MessageFlowAnimation from "@/components/MessageFlowAnimation";
 import { useLanguage } from "@/context/LanguageContext";
+import FlowArrowIcon from "@/assets/icons/FlowArrowIcon";
+import LinkArrowIcon from "@/assets/icons/LinkArrowIcon";
 
 export default function DashboardPreview() {
   const { t } = useLanguage();
@@ -168,10 +170,10 @@ export default function DashboardPreview() {
                       <button
                         onClick={() => handleReverseDirection(route.id)}
                         type="button"
-                        title="Reverse flow"
-                        className="w-8 h-8 bg-tropical-teal-500 text-black border-2 border-black flex items-center justify-center font-mono font-black neo-button text-sm"
+                        title={t("reverse_direction")}
+                        className="w-8 h-8 bg-tropical-teal-500 text-black border-2 border-black flex items-center justify-center neo-button"
                       >
-                        {route.isReversed ? "←" : "→"}
+                        <FlowArrowIcon reversed={route.isReversed} className="w-5 h-5" />
                       </button>
 
                       {/* Destination */}
@@ -245,9 +247,10 @@ export default function DashboardPreview() {
       <div className="mt-8 flex justify-center border-t-2 border-black pt-6">
         <Link 
           href="/login" 
-          className="px-6 py-3 bg-lime-cream-400 text-black font-black uppercase tracking-wider border-2 border-black neo-button text-xs hover:bg-lime-cream-300"
+          className="group px-6 py-3 bg-lime-cream-400 text-black font-black uppercase tracking-wider border-2 border-black neo-button text-xs hover:bg-lime-cream-300 flex items-center gap-1.5"
         >
-          Configure Live Pipelines &rarr;
+          {t("configure_pipelines")}
+          <LinkArrowIcon className="w-4 h-4 transform group-hover:translate-x-1 transition-transform duration-150" />
         </Link>
       </div>
     </div>

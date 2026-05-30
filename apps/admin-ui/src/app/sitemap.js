@@ -1,7 +1,8 @@
 import { headers } from 'next/headers'
 
-export default function sitemap() {
-  const host = headers().get('host');
+export default async function sitemap() {
+  const reqHeaders = await headers();
+  const host = reqHeaders.get('host');
   return [
   {
     url: `https://${host}`,

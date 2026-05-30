@@ -6,6 +6,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useLanguage } from "@/context/LanguageContext";
 import TelegramIcon from "@/assets/icons/TelegramIcon";
 import VkIcon from "@/assets/icons/VkIcon";
+import LinkArrowIcon from "@/assets/icons/LinkArrowIcon";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -230,9 +231,7 @@ export default function HowToStart() {
                 </div>
 
                 {/* Arrow */}
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-lime-cream-600 group-hover:text-lime-cream-300 transition-colors duration-150 flex-shrink-0">
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
+                <LinkArrowIcon className="w-4 h-4 text-lime-cream-600 group-hover:text-lime-cream-300 transition-colors duration-150 flex-shrink-0 transform group-hover:translate-x-1" />
               </a>
             ))}
           </div>

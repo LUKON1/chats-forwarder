@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
  
 // Dynamic metadata generation to fetch the current host safely
 export async function generateMetadata() {
-  const reqHeaders = headers();
+  const reqHeaders = await headers();
   const hostHeader = reqHeaders.get('host') || 'localhost:3000';
   const host = new URL(`https://${hostHeader}`);
 

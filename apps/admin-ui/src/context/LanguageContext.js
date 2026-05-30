@@ -7,19 +7,12 @@ const LanguageContext = createContext();
 const translations = {
   ru: {
     // Landing
-    logo: "CF",
     title: "Chat Forwarder",
     signin: "Войти",
     signup: "Регистрация",
     smm_automation: "Автоматизация SMM",
     hero_headline: "Пересылка сообщений без задержек.",
     hero_sub: "Синхронизируйте чаты и каналы в реальном времени. Быстро, стабильно и с гибкой настройкой.",
-    vk_group: "Группа VKontakte",
-    tg_channel: "Канал Telegram",
-    stream_active: "статус_потока: активен",
-    origin: "Источник",
-    delay: "Задержка",
-    target: "Назначение",
     reliable_title: "100% Надежность",
     reliable_desc: "Сообщения, вложения и медиафайлы передаются мгновенно и без потерь.",
     flow_title: "Двусторонний поток",
@@ -34,7 +27,6 @@ const translations = {
     success_label: "УСПЕХ",
     username: "Имя пользователя",
     password: "Пароль",
-    email: "Электронная почта",
     confirm_password: "Подтвердите пароль",
     login_btn: "Войти",
     register_btn: "Создать аккаунт",
@@ -46,7 +38,6 @@ const translations = {
     pw_mismatch: "Пароли не совпадают",
     invalid_credentials: "Неверное имя пользователя или пароль",
     placeholder_username: "например, admin",
-    placeholder_email: "name@domain.com",
     server_connection_failed: "Ошибка соединения с сервером",
     registration_failed: "Ошибка регистрации пользователя",
     
@@ -60,7 +51,6 @@ const translations = {
     create_route: "+ Создать маршрут",
     config_pipeline: "Настройка маршрута пересылки",
     pipeline_name: "Название маршрута",
-    direction_flow: "Направление пересылки",
     source_chat: "Исходный чат",
     target_chat: "Целевой чат",
     choose_source: "-- Выберите исходный чат --",
@@ -74,7 +64,6 @@ const translations = {
     chat_deleted: "[Чат удален]",
     none: "нет",
     active: "Активен",
-    paused: "На паузе",
     delete: "Удалить",
     chats_pool_desc: "Список каналов, групп и бесед, зарегистрированных для сопоставления.",
     no_vk_chats: "В пуле нет чатов VKontakte.",
@@ -95,8 +84,6 @@ const translations = {
     cannot_connect_api: "Не удалось подключиться к серверу API бота на порту 4000",
     sync_with_api: "СИНХРОНИЗАЦИЯ С СЕРВЕРОМ API...",
     placeholder_pipeline_name: "например, VK -> Telegram",
-    direction_vk_to_tg: "VKontakte ──► Telegram",
-    direction_tg_to_vk: "Telegram ──► VKontakte",
     generating: "ГЕНЕРАЦИЯ...",
     username_too_short: "Имя пользователя должно быть от 3 до 20 символов",
     password_too_short: "Пароль должен быть не менее 6 символов",
@@ -109,10 +96,14 @@ const translations = {
     "Failed to disconnect chat": "Не удалось удалить чат из пула",
     "Failed to create pipeline": "Не удалось создать маршрут пересылки",
     "API server connection failed": "Ошибка соединения с сервером API",
+    reverse_direction: "Развернуть направление пересылки",
+    configure_pipelines: "Настроить потоки пересылки",
+    no_options: "Нет доступных вариантов",
+    copied: "Скопировано!",
+    click_to_copy: "Нажмите для копирования",
 
     // How to Start translations
     how_to_start: "Как начать",
-    docs_back_to_landing: "На главную",
     docs_intro_title: "Быстрый старт",
     docs_intro_sub: "Четыре шага для запуска автоматической пересылки.",
     docs_bots_title: "Наши боты",
@@ -134,19 +125,12 @@ const translations = {
   },
   en: {
     // Landing
-    logo: "CF",
     title: "Chat Forwarder",
     signin: "Sign In",
     signup: "Join Free",
     smm_automation: "SMM Automation",
     hero_headline: "Forward messages without delay.",
     hero_sub: "Sync your communities and channels in real-time. Fast, stable, and highly configurable. Powered by Bun and Next.js.",
-    vk_group: "VKontakte Group",
-    tg_channel: "Telegram Channel",
-    stream_active: "active_stream_status: ok",
-    origin: "Origin",
-    delay: "Delay",
-    target: "Target",
     reliable_title: "100% Reliable",
     reliable_desc: "Messages, attachments, and high-resolution media are delivered instantly and without losses.",
     flow_title: "Two-way Flow",
@@ -162,7 +146,6 @@ const translations = {
     success_label: "SUCCESS",
     username: "Username",
     password: "Password",
-    email: "Email Address",
     confirm_password: "Confirm Password",
     login_btn: "Authenticate",
     register_btn: "Create Account",
@@ -174,7 +157,6 @@ const translations = {
     pw_mismatch: "Passwords do not match",
     invalid_credentials: "Invalid username or password",
     placeholder_username: "e.g. admin",
-    placeholder_email: "name@domain.com",
     server_connection_failed: "Server connection failed",
     registration_failed: "User registration failed",
     
@@ -188,7 +170,6 @@ const translations = {
     create_route: "+ Create Route",
     config_pipeline: "Configure Message Pipeline",
     pipeline_name: "Pipeline Name",
-    direction_flow: "Direction Flow",
     source_chat: "Source Chat",
     target_chat: "Target Chat",
     choose_source: "-- Choose source chat --",
@@ -202,7 +183,6 @@ const translations = {
     chat_deleted: "[Chat deleted]",
     none: "none",
     active: "Active",
-    paused: "Paused",
     delete: "Delete",
     chats_pool_desc: "List of channels, groups, and conversations registered for mapping.",
     no_vk_chats: "No VK chats in pool.",
@@ -223,8 +203,6 @@ const translations = {
     cannot_connect_api: "Could not connect to Bot API Server on port 4000",
     sync_with_api: "SYNCHRONIZING WITH BOT ENGINE API...",
     placeholder_pipeline_name: "e.g. VK -> Telegram",
-    direction_vk_to_tg: "VKontakte ──► Telegram",
-    direction_tg_to_vk: "Telegram ──► VKontakte",
     generating: "GENERATING...",
     username_too_short: "Username must be between 3 and 20 characters",
     password_too_short: "Password must be at least 6 characters",
@@ -237,10 +215,14 @@ const translations = {
     "Failed to disconnect chat": "Failed to disconnect chat",
     "Failed to create pipeline": "Failed to create pipeline",
     "API server connection failed": "API server connection failed",
+    reverse_direction: "Reverse forwarding direction",
+    configure_pipelines: "Configure Live Pipelines",
+    no_options: "No options available",
+    copied: "Copied!",
+    click_to_copy: "Click to copy",
 
     // How to Start translations
     how_to_start: "How to Start",
-    docs_back_to_landing: "Back to Home",
     docs_intro_title: "Quick Start",
     docs_intro_sub: "Four steps to launch automated message forwarding.",
     docs_bots_title: "Our Bots",
@@ -260,7 +242,7 @@ const translations = {
     docs_connect_cmd: "/connect <your_pin_code>",
     docs_bots_admin_note: "Administrator rights required",
   }
-};
+}
 
 export function LanguageProvider({ children }) {
   const [locale, setLocale] = useState("ru");
