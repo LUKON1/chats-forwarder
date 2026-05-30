@@ -11,7 +11,7 @@ COPY apps/admin-ui/package.json ./apps/admin-ui/
 COPY apps/bot-engine/package.json ./apps/bot-engine/
 RUN bun install
 
-# Build the app
+# Build app
 FROM base AS builder
 ARG BACKEND_URL
 ENV BACKEND_URL=$BACKEND_URL
@@ -19,13 +19,13 @@ COPY --from=installer /app ./
 COPY apps/admin-ui ./apps/admin-ui
 RUN cd apps/admin-ui && bun run build
 
-# Development stage
+# Dev stage
 FROM installer AS dev
 ENV NODE_ENV=development
 EXPOSE 3000
 ENTRYPOINT ["bun", "--cwd", "apps/admin-ui", "dev"]
 
-# Production runner
+# Prod runner
 FROM node:22-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
