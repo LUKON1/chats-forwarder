@@ -4,6 +4,7 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:4000";
 const nextConfig = {
   /* Standalone build for Docker */
   output: 'standalone',
+  trailingSlash: false,
   async rewrites() {
     return [
       {

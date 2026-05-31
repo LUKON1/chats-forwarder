@@ -2,7 +2,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/context/LanguageContext";
 import Header from "@/components/Header";
-import logoImg from "@/assets/logo.svg"
 import { headers } from 'next/headers';
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,7 +23,7 @@ export async function generateMetadata() {
     metadataBase: host,
 
     title: {
-      default: "Chats Forwarder",
+      default: "Chats Forwarder — автоматическая пересылка сообщений между мессенджерами",
       template: "%s | Chats Forwarder",
     },
     description: "Кроссплатформенная пересылка сообщений между мессенджерами.",
@@ -41,7 +40,14 @@ export async function generateMetadata() {
       url: host.toString(),
       title: "Chats Forwarder",
       description: "Кроссплатформенная пересылка сообщений между мессенджерами.",
-      images: [{ url: logoImg.src }],
+      images: [
+        {
+          url: "/banner-og.jpg",
+          width: 1200,
+          height: 630,
+          alt: "Chats Forwarder Banner"
+        }
+      ],
     },
 
     // Twitter Card metadata
@@ -49,7 +55,7 @@ export async function generateMetadata() {
       card: "summary_large_image",
       title: "Chats Forwarder",
       description: "Кроссплатформенная пересылка сообщений между мессенджерами.",
-      images: [logoImg.src],
+      images: ["/banner-og.jpg"],
     }
   };
 }
