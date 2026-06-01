@@ -15,8 +15,8 @@ const MESSENGER_BOTS = [
   {
     id: "vk",
     name: "VKontakte",
-    handle: "@ChatForwarderBot",
-    url: "https://vk.com",
+    handle: "Chats Forwarder",
+    url: "https://vk.com/club239265109",
     Icon: VkIcon,
     bgClass: "fill-cerulean-600",
     accent: "bg-cerulean-600",
@@ -25,8 +25,8 @@ const MESSENGER_BOTS = [
   {
     id: "tg",
     name: "Telegram",
-    handle: "@ChatForwarderBot",
-    url: "https://t.me",
+    handle: "@chatsForwarderbot",
+    url: "https://t.me/chatsForwarderbot",
     Icon: TelegramIcon,
     bgClass: "fill-cerulean-500",
     accent: "bg-cerulean-500",
