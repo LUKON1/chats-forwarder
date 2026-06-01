@@ -1,0 +1,50 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id             Int             @id @default(autoincrement())
+  username       String          @unique
+  passwordHash   String          @map("password_hash")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  connectedChats ConnectedChat[]
+  bridges        Bridge[]
+
+  @@map("users")
+}
+
+model ConnectedChat {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @map("user_id")
+  platform    String
+  chatId      BigInt   @map("chat_id")
+  title       String
+  connectedAt DateTime @default(now()) @map("connected_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, platform, chatId])
+  @@map("connected_chats")
+}
+
+model Bridge {
+  id             Int     @id @default(autoincrement())
+  userId         Int     @map("user_id")
+  title          String?
+  sourceChatId   BigInt  @map("source_chat_id")
+  sourcePlatform String  @map("source_platform")
+  targetChatId   BigInt  @map("target_chat_id")
+  targetPlatform String  @map("target_platform")
+  isActive       Boolean @default(true) @map("is_active")
+  showAuthor     Boolean @default(true) @map("show_author")
+  isReversed     Boolean @default(false) @map("is_reversed")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("bridges")
+}

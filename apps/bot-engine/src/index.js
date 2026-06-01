@@ -164,15 +164,7 @@ startTgListener(forwardTgToVk).then(() => {
   console.error("Telegram setup failed:", err);
 });
 
-// Helper to run temp code and refresh token garbage collector once an hour
-setInterval(() => {
-  try {
-    dbHelper.clearExpiredTempCodes();
-    dbHelper.clearExpiredRefreshTokens();
-  } catch (err) {
-    console.error("Failed to clear expired temp codes or refresh tokens:", err);
-  }
-}, 60 * 60 * 1000);
+// Garbage collection of temp codes and refresh tokens is handled automatically by Redis TTL
 
 // Start HTTP REST API Server
 createFetchServer(async (req) => {
@@ -221,13 +213,13 @@ createFetchServer(async (req) => {
           return new Response(JSON.stringify({ error: "Invalid credentials length" }), { status: 400, headers });
         }
 
-        const user = dbHelper.getUser(username);
+        const user = await dbHelper.getUser(username);
         if (!user) {
           return new Response(JSON.stringify({ error: "Invalid credentials" }), { status: 401, headers });
         }
 
         // Verify password hash using bcryptjs
-        const isValid = await bcrypt.compare(password, user.password_hash);
+        const isValid = await bcrypt.compare(password, user.passwordHash);
         if (!isValid) {
           return new Response(JSON.stringify({ error: "Invalid credentials" }), { status: 401, headers });
         }
@@ -237,7 +229,7 @@ createFetchServer(async (req) => {
         const refreshToken = generateRefreshToken({ id: user.id, username: user.username });
 
         // Save refresh token hash to SQLite database (and clear old ones)
-        dbHelper.addRefreshToken(refreshToken, user.id);
+        await dbHelper.addRefreshToken(refreshToken, user.id);
 
         const resHeaders = new Headers(headers);
         resHeaders.append(
@@ -270,14 +262,14 @@ createFetchServer(async (req) => {
           return new Response(JSON.stringify({ error: "Password must be at least 6 characters long" }), { status: 400, headers });
         }
 
-        const existingUser = dbHelper.getUser(username);
+        const existingUser = await dbHelper.getUser(username);
         if (existingUser) {
           return new Response(JSON.stringify({ error: "Username already taken" }), { status: 409, headers });
         }
 
         // Hash password using bcryptjs
         const passwordHash = await bcrypt.hash(password, 10);
-        const newUser = dbHelper.addUser(username, passwordHash);
+        const newUser = await dbHelper.addUser(username, passwordHash);
 
         return new Response(JSON.stringify({
           success: true,
@@ -301,7 +293,7 @@ createFetchServer(async (req) => {
         }
 
         // Validate token exists in database (compares hash)
-        const dbRecord = dbHelper.validateRefreshToken(refreshToken);
+        const dbRecord = await dbHelper.validateRefreshToken(refreshToken);
         if (!dbRecord) {
           const resHeaders = new Headers(headers);
           resHeaders.append("Set-Cookie", "refresh_token=; HttpOnly; Path=/api/auth; SameSite=Strict; Max-Age=0; Secure");
@@ -311,7 +303,7 @@ createFetchServer(async (req) => {
         // Token Rotation: Generate new access AND refresh tokens
         const accessToken = generateAccessToken({ id: decoded.id, username: decoded.username });
         const newRefreshToken = generateRefreshToken({ id: decoded.id, username: decoded.username });
-        dbHelper.addRefreshToken(newRefreshToken, decoded.id);
+        await dbHelper.addRefreshToken(newRefreshToken, decoded.id);
 
         const resHeaders = new Headers(headers);
         resHeaders.append(
@@ -329,7 +321,7 @@ createFetchServer(async (req) => {
       if (path === "/api/auth/logout" && method === "POST") {
         const refreshToken = getCookie(req, "refresh_token");
         if (refreshToken) {
-          dbHelper.deleteRefreshToken(refreshToken);
+          await dbHelper.deleteRefreshToken(refreshToken);
         }
         
         const resHeaders = new Headers(headers);
@@ -383,21 +375,21 @@ createFetchServer(async (req) => {
 
       // GET /api/bridges - List user's bridges
       if (path === "/api/bridges" && method === "GET") {
-        const queryUserId = Number(url.searchParams.get("user_id") || 1);
+        const queryUserId = Number(url.searchParams.get("userId") || 1);
         const userId = enforcedUserId !== null ? enforcedUserId : queryUserId;
         
-        const bridges = dbHelper.getBridges(userId);
+        const bridges = await dbHelper.getBridges(userId);
         return new Response(JSON.stringify(bridges), { headers });
       }
 
       // POST /api/bridges - Create a new bridge
       if (path === "/api/bridges" && method === "POST") {
         const body = await req.json();
-        const { user_id, source_platform, source_chat_id, target_platform, target_chat_id, title, show_author } = body;
+        const { userId: bodyUserId, sourcePlatform, sourceChatId, targetPlatform, targetChatId, title, showAuthor } = body;
         
-        const userId = enforcedUserId !== null ? enforcedUserId : Number(user_id || 1);
+        const userId = enforcedUserId !== null ? enforcedUserId : Number(bodyUserId || 1);
 
-        if (!source_platform || !source_chat_id || !target_platform || !target_chat_id) {
+        if (!sourcePlatform || !sourceChatId || !targetPlatform || !targetChatId) {
           return new Response(JSON.stringify({ error: "Missing required fields" }), {
             status: 400,
             headers
@@ -405,21 +397,21 @@ createFetchServer(async (req) => {
         }
 
         // Prevent bridging a chat to itself
-        if (source_platform === target_platform && Number(source_chat_id) === Number(target_chat_id)) {
+        if (sourcePlatform === targetPlatform && Number(sourceChatId) === Number(targetChatId)) {
           return new Response(JSON.stringify({ error: "Cannot bridge a chat to itself" }), {
             status: 400,
             headers
           });
         }
 
-        const newBridge = dbHelper.addBridge(
+        const newBridge = await dbHelper.addBridge(
           userId,
-          source_platform,
-          Number(source_chat_id),
-          target_platform,
-          Number(target_chat_id),
+          sourcePlatform,
+          Number(sourceChatId),
+          targetPlatform,
+          Number(targetChatId),
           title,
-          show_author !== false
+          showAuthor !== false
         );
         return new Response(JSON.stringify(newBridge), { headers });
       }
@@ -431,18 +423,18 @@ createFetchServer(async (req) => {
           return new Response(JSON.stringify({ error: "Invalid bridge ID" }), { status: 400, headers });
         }
         
-        const bridge = dbHelper.getBridge(id);
+        const bridge = await dbHelper.getBridge(id);
         if (!bridge) {
           return new Response(JSON.stringify({ error: "Bridge not found" }), { status: 404, headers });
         }
 
         // Verify ownership if not system access
-        if (enforcedUserId !== null && bridge.user_id !== enforcedUserId) {
+        if (enforcedUserId !== null && bridge.userId !== enforcedUserId) {
           return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers });
         }
 
         const body = await req.json();
-        const updated = dbHelper.updateBridge(id, body);
+        const updated = await dbHelper.updateBridge(id, body);
         return new Response(JSON.stringify(updated), { headers });
       }
 
@@ -456,26 +448,26 @@ createFetchServer(async (req) => {
           });
         }
 
-        const bridge = dbHelper.getBridge(id);
+        const bridge = await dbHelper.getBridge(id);
         if (!bridge) {
           return new Response(JSON.stringify({ error: "Bridge not found" }), { status: 404, headers });
         }
 
         // Verify ownership if not system access
-        if (enforcedUserId !== null && bridge.user_id !== enforcedUserId) {
+        if (enforcedUserId !== null && bridge.userId !== enforcedUserId) {
           return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers });
         }
 
-        dbHelper.deleteBridge(id);
+        await dbHelper.deleteBridge(id);
         return new Response(JSON.stringify({ success: true }), { headers });
       }
 
       // GET /api/chats - Get user's connected chats
       if (path === "/api/chats" && method === "GET") {
-        const queryUserId = Number(url.searchParams.get("user_id") || 1);
+        const queryUserId = Number(url.searchParams.get("userId") || 1);
         const userId = enforcedUserId !== null ? enforcedUserId : queryUserId;
 
-        const chats = dbHelper.getConnectedChats(userId);
+        const chats = await dbHelper.getConnectedChats(userId);
         return new Response(JSON.stringify(chats), { headers });
       }
 
@@ -484,23 +476,23 @@ createFetchServer(async (req) => {
         const parts = path.split("/");
         const chatId = Number(parts.pop());
         const platform = parts.pop();
-        const queryUserId = Number(url.searchParams.get("user_id") || 1);
+        const queryUserId = Number(url.searchParams.get("userId") || 1);
         const userId = enforcedUserId !== null ? enforcedUserId : queryUserId;
 
         if (!platform || !chatId || isNaN(chatId)) {
           return new Response(JSON.stringify({ error: "Invalid request parameters" }), { status: 400, headers });
         }
 
-        dbHelper.deleteConnectedChat(userId, platform, chatId);
+        await dbHelper.deleteConnectedChat(userId, platform, chatId);
         return new Response(JSON.stringify({ success: true }), { headers });
       }
 
       // POST /api/connect/code - Generate pin-code for onboarding
       if (path === "/api/connect/code" && method === "POST") {
         const body = await req.json();
-        const { user_id, platform } = body;
+        const { userId: bodyUserId, platform } = body;
         
-        const userId = enforcedUserId !== null ? enforcedUserId : Number(user_id || 1);
+        const userId = enforcedUserId !== null ? enforcedUserId : Number(bodyUserId || 1);
 
         if (!platform || !["vk", "tg"].includes(platform)) {
           return new Response(JSON.stringify({ error: "Missing or invalid parameters" }), { status: 400, headers });
@@ -508,7 +500,7 @@ createFetchServer(async (req) => {
 
         // Generate 6 digit pin code
         const code = String(crypto.randomInt(100000, 999999));
-        const record = dbHelper.addTempCode(userId, platform, code);
+        const record = await dbHelper.addTempCode(userId, platform, code);
 
         return new Response(JSON.stringify(record), { headers });
       }

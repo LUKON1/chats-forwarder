@@ -1,305 +1,362 @@
-import { mkdirSync, existsSync } from "fs";
-import { dirname } from "path";
+import { PrismaClient } from "@prisma/client";
+import Redis from "ioredis";
 import { createHash } from "crypto";
 
-// Helper to hash refresh tokens before storing in SQLite
+// Allowed origins
+// Helper to hash refresh tokens before storing in Redis
 function hashToken(token) {
   return createHash("sha256").update(token).digest("hex");
 }
 
-let Database;
-
-if (typeof Bun !== "undefined") {
-  // Use native Bun SQLite
-  const sqlite = await import("bun:sqlite");
-  Database = sqlite.Database;
-} else {
-  // Use native Node.js SQLite (available in Node.js 22.5+)
-  const sqlite = await import("node:sqlite");
-  Database = class Database {
-    constructor(path, options = {}) {
-      this.db = new sqlite.DatabaseSync(path, options);
+// Helper to convert Prisma objects with BigInt to JS Number safely
+function serializeDbObject(obj) {
+  if (!obj) return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(serializeDbObject);
+  }
+  const result = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === "bigint") {
+      result[key] = Number(value);
+    } else if (value instanceof Date) {
+      result[key] = value;
+    } else if (typeof value === "object" && value !== null) {
+      result[key] = serializeDbObject(value);
+    } else {
+      result[key] = value;
     }
-
-    run(sql) {
-      return this.db.exec(sql);
-    }
-
-    query(sql) {
-      const stmt = this.db.prepare(sql);
-      return {
-        run: (params = {}) => stmt.run(params),
-        get: (params = {}) => stmt.get(params),
-        all: (params = {}) => stmt.all(params)
-      };
-    }
-  };
-}
-
-const dbPath = process.env.DATABASE_PATH || "./data/db.sqlite";
-
-// Ensure database directory exists
-const dbDir = dirname(dbPath);
-if (!existsSync(dbDir)) {
-  mkdirSync(dbDir, { recursive: true });
-}
-
-// Initialize SQLite database
-const db = new Database(dbPath);
-
-// Enable WAL mode for high performance concurrency
-db.run("PRAGMA journal_mode = WAL;");
-
-// Initialize tables
-db.run(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-`);
-
-db.run(`
-  CREATE TABLE IF NOT EXISTS connected_chats (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    platform TEXT NOT NULL,
-    chat_id INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    connected_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(user_id, platform, chat_id)
-  );
-`);
-
-db.run(`
-  CREATE TABLE IF NOT EXISTS temp_codes (
-    code TEXT PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    platform TEXT NOT NULL,
-    expires_at DATETIME NOT NULL,
-    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
-`);
-
-db.run(`
-  CREATE TABLE IF NOT EXISTS refresh_tokens (
-    token TEXT PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    expires_at DATETIME NOT NULL,
-    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
-`);
-
-  db.run(`
-  CREATE TABLE IF NOT EXISTS bridges (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    title TEXT,
-    source_chat_id INTEGER NOT NULL,
-    source_platform TEXT NOT NULL,
-    target_chat_id INTEGER NOT NULL,
-    target_platform TEXT NOT NULL,
-    is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
-    show_author INTEGER NOT NULL DEFAULT 1 CHECK(show_author IN (0, 1)),
-    is_reversed INTEGER NOT NULL DEFAULT 0 CHECK(is_reversed IN (0, 1)),
-    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
-`);
-
-// Run SQLite migrations to add columns that may not exist in older databases
-try {
-  db.run("ALTER TABLE bridges ADD COLUMN is_reversed INTEGER NOT NULL DEFAULT 0 CHECK(is_reversed IN (0, 1))");
-} catch (e) {
-  // Column already exists, ignore error
-}
-
-try {
-  db.run("ALTER TABLE bridges ADD COLUMN show_author INTEGER NOT NULL DEFAULT 1 CHECK(show_author IN (0, 1))");
-} catch (e) {
-  // Column already exists, ignore error
+  }
+  return result;
 }
 
 
+
+// Initialize Prisma Client and Redis
+const prisma = new PrismaClient();
+const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
+const redis = new Redis(redisUrl);
+
+// Bridge Cache Helpers
+async function invalidateBridgeCache(platform, chatId) {
+  try {
+    await redis.del(`bridge:source:${platform}:${Number(chatId)}`);
+  } catch (err) {
+    console.error("Failed to invalidate bridge cache in Redis:", err);
+  }
+}
 
 // Database helper functions
 export const dbHelper = {
   // User operations
-  getUser: (username) => {
-    return db.query("SELECT * FROM users WHERE username = $username").get({ $username: username });
+  getUser: async (username) => {
+    const user = await prisma.user.findUnique({
+      where: { username }
+    });
+    if (!user) return null;
+    return {
+      id: user.id,
+      username: user.username,
+      passwordHash: user.passwordHash,
+      createdAt: user.createdAt
+    };
   },
 
-  addUser: (username, passwordHash) => {
-    const query = db.query("INSERT INTO users (username, password_hash) VALUES ($username, $hash) RETURNING id, username");
-    return query.get({ $username: username, $hash: passwordHash });
+  addUser: async (username, passwordHash) => {
+    const user = await prisma.user.create({
+      data: {
+        username,
+        passwordHash
+      }
+    });
+    return {
+      id: user.id,
+      username: user.username
+    };
   },
 
   // Bridge operations
-  getBridges: (userId) => {
-    const query = db.query("SELECT * FROM bridges WHERE user_id = $userId");
-    return query.all({ $userId: userId });
-  },
-
-  getBridgesBySource: (platform, chatId) => {
-    const query = db.query(`
-      SELECT * FROM bridges 
-      WHERE is_active = 1 AND (
-        (source_platform = $platform AND source_chat_id = $chatId AND is_reversed = 0) OR
-        (target_platform = $platform AND target_chat_id = $chatId AND is_reversed = 1)
-      )
-    `);
-    return query.all({ $platform: platform, $chatId: Number(chatId) });
-  },
-
-  addBridge: (userId, sourcePlatform, sourceChatId, targetPlatform, targetChatId, title = null, showAuthor = true) => {
-    const query = db.query(`
-      INSERT INTO bridges (user_id, source_platform, source_chat_id, target_platform, target_chat_id, title, show_author, is_reversed)
-      VALUES ($userId, $sourcePlatform, $sourceChatId, $targetPlatform, $targetChatId, $title, $showAuthor, 0)
-      RETURNING *
-    `);
-    return query.get({
-      $userId: userId,
-      $sourcePlatform: sourcePlatform,
-      $sourceChatId: Number(sourceChatId),
-      $targetPlatform: targetPlatform,
-      $targetChatId: Number(targetChatId),
-      $title: title,
-      $showAuthor: showAuthor ? 1 : 0
+  getBridges: async (userId) => {
+    const bridges = await prisma.bridge.findMany({
+      where: { userId }
     });
+    return serializeDbObject(bridges);
   },
 
-  getBridge: (id) => {
-    const query = db.query("SELECT * FROM bridges WHERE id = $id");
-    return query.get({ $id: id });
-  },
+  getBridgesBySource: async (platform, chatId) => {
+    const cacheKey = `bridge:source:${platform}:${Number(chatId)}`;
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch (err) {
+      console.error("Redis read error in getBridgesBySource:", err);
+    }
 
-  deleteBridge: (id) => {
-    const query = db.query("DELETE FROM bridges WHERE id = $id");
-    query.run({ $id: id });
-  },
-
-  updateBridge: (id, fields) => {
-    // Whitelist allowed fields to prevent SQL injection
-    const allowedFields = ["is_active", "show_author", "title", "source_platform", "source_chat_id", "target_platform", "target_chat_id", "is_reversed"];
-    const keys = Object.keys(fields).filter(k => allowedFields.includes(k));
-    if (keys.length === 0) return dbHelper.getBridge(id);
-
-    const setClause = keys.map(k => `${k} = $${k}`).join(", ");
-    const query = db.query(`UPDATE bridges SET ${setClause} WHERE id = $id RETURNING *`);
-    
-    const params = { $id: id };
-    keys.forEach(k => {
-      params[`$${k}`] = fields[k];
+    const bridges = await prisma.bridge.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          {
+            sourcePlatform: platform,
+            sourceChatId: BigInt(chatId),
+            isReversed: false
+          },
+          {
+            targetPlatform: platform,
+            targetChatId: BigInt(chatId),
+            isReversed: true
+          }
+        ]
+      }
     });
+
+    const serialized = serializeDbObject(bridges);
+
+    try {
+      // Cache for 1 hour
+      await redis.setex(cacheKey, 3600, JSON.stringify(serialized));
+    } catch (err) {
+      console.error("Redis write error in getBridgesBySource:", err);
+    }
+
+    return serialized;
+  },
+
+  addBridge: async (userId, sourcePlatform, sourceChatId, targetPlatform, targetChatId, title = null, showAuthor = true) => {
+    const bridge = await prisma.bridge.create({
+      data: {
+        userId,
+        sourcePlatform,
+        sourceChatId: BigInt(sourceChatId),
+        targetPlatform,
+        targetChatId: BigInt(targetChatId),
+        title,
+        showAuthor,
+        isReversed: false
+      }
+    });
+
+    // Invalidate caches
+    await invalidateBridgeCache(sourcePlatform, sourceChatId);
+    await invalidateBridgeCache(targetPlatform, targetChatId);
+
+    return serializeDbObject(bridge);
+  },
+
+  getBridge: async (id) => {
+    const bridge = await prisma.bridge.findUnique({
+      where: { id }
+    });
+    return serializeDbObject(bridge);
+  },
+
+  deleteBridge: async (id) => {
+    const bridge = await prisma.bridge.findUnique({
+      where: { id }
+    });
+    if (bridge) {
+      await prisma.bridge.delete({
+        where: { id }
+      });
+      // Invalidate caches
+      await invalidateBridgeCache(bridge.sourcePlatform, bridge.sourceChatId);
+      await invalidateBridgeCache(bridge.targetPlatform, bridge.targetChatId);
+    }
+  },
+
+  updateBridge: async (id, fields) => {
+    const allowedFields = ["isActive", "showAuthor", "title", "sourcePlatform", "sourceChatId", "targetPlatform", "targetChatId", "isReversed"];
     
-    return query.get(params);
+    // Map fields supporting camelCase inputs
+    const dbFields = {};
+    if (fields.isActive !== undefined) dbFields.isActive = !!fields.isActive;
+    if (fields.showAuthor !== undefined) dbFields.showAuthor = !!fields.showAuthor;
+    if (fields.isReversed !== undefined) dbFields.isReversed = !!fields.isReversed;
+    if (fields.title !== undefined) dbFields.title = fields.title;
+    if (fields.sourcePlatform !== undefined) dbFields.sourcePlatform = fields.sourcePlatform;
+    if (fields.sourceChatId !== undefined) dbFields.sourceChatId = BigInt(fields.sourceChatId);
+    if (fields.targetPlatform !== undefined) dbFields.targetPlatform = fields.targetPlatform;
+    if (fields.targetChatId !== undefined) dbFields.targetChatId = BigInt(fields.targetChatId);
+
+    // Get original to invalidate old caches
+    const original = await prisma.bridge.findUnique({
+      where: { id }
+    });
+
+    if (original) {
+      await invalidateBridgeCache(original.sourcePlatform, original.sourceChatId);
+      await invalidateBridgeCache(original.targetPlatform, original.targetChatId);
+    }
+
+    const updated = await prisma.bridge.update({
+      where: { id },
+      data: dbFields
+    });
+
+    // Invalidate new caches
+    await invalidateBridgeCache(updated.sourcePlatform, updated.sourceChatId);
+    await invalidateBridgeCache(updated.targetPlatform, updated.targetChatId);
+
+    return serializeDbObject(updated);
   },
 
   // Connected Chats operations
-  getConnectedChats: (userId) => {
-    const vk = db.query("SELECT * FROM connected_chats WHERE user_id = $userId AND platform = 'vk'").all({ $userId: userId });
-    const tg = db.query("SELECT * FROM connected_chats WHERE user_id = $userId AND platform = 'tg'").all({ $userId: userId });
-    return { vk, tg };
-  },
-
-  addConnectedChat: (userId, platform, chatId, title) => {
-    const query = db.query(`
-      INSERT OR REPLACE INTO connected_chats (user_id, platform, chat_id, title)
-      VALUES ($userId, $platform, $chatId, $title)
-      RETURNING *
-    `);
-    return query.get({
-      $userId: userId,
-      $platform: platform,
-      $chatId: Number(chatId),
-      $title: title
+  getConnectedChats: async (userId) => {
+    const chats = await prisma.connectedChat.findMany({
+      where: { userId }
     });
-  },
-
-  deleteConnectedChat: (userId, platform, chatId) => {
-    const query = db.query("DELETE FROM connected_chats WHERE user_id = $userId AND platform = $platform AND chat_id = $chatId");
-    query.run({
-      $userId: userId,
-      $platform: platform,
-      $chatId: Number(chatId)
-    });
-  },
-
-  // Temp Codes operations
-  addTempCode: (userId, platform, code) => {
-    db.query("DELETE FROM temp_codes WHERE user_id = $userId AND platform = $platform").run({
-      $userId: userId,
-      $platform: platform
-    });
-
-    const query = db.query(`
-      INSERT INTO temp_codes (code, user_id, platform, expires_at)
-      VALUES ($code, $userId, $platform, datetime('now', '+10 minutes'))
-      RETURNING *
-    `);
-    return query.get({
-      $code: code,
-      $userId: userId,
-      $platform: platform
-    });
-  },
-
-  validateTempCode: (code, platform) => {
-    const query = db.query(`
-      SELECT * FROM temp_codes 
-      WHERE code = $code AND platform = $platform AND expires_at > datetime('now')
-    `);
-    const record = query.get({ $code: code, $platform: platform });
+    const serialized = serializeDbObject(chats);
     
-    if (record) {
-      db.query("DELETE FROM temp_codes WHERE code = $code").run({ $code: code });
-      return record;
+    return {
+      vk: serialized.filter(c => c.platform === "vk"),
+      tg: serialized.filter(c => c.platform === "tg")
+    };
+  },
+
+  addConnectedChat: async (userId, platform, chatId, title) => {
+    const chat = await prisma.connectedChat.upsert({
+      where: {
+        userId_platform_chatId: {
+          userId,
+          platform,
+          chatId: BigInt(chatId)
+        }
+      },
+      update: {
+        title
+      },
+      create: {
+        userId,
+        platform,
+        chatId: BigInt(chatId),
+        title
+      }
+    });
+    return serializeDbObject(chat);
+  },
+
+  deleteConnectedChat: async (userId, platform, chatId) => {
+    await prisma.connectedChat.deleteMany({
+      where: {
+        userId,
+        platform,
+        chatId: BigInt(chatId)
+      }
+    });
+  },
+
+  // Temp Codes operations (Moved to Redis)
+  addTempCode: async (userId, platform, code) => {
+    const userKey = `temp_code:user:${userId}:${platform}`;
+    const codeKey = `temp_code:code:${code}:${platform}`;
+
+    // Read and remove old code mapping if exists
+    try {
+      const oldCode = await redis.get(userKey);
+      if (oldCode) {
+        await redis.del(`temp_code:code:${oldCode}:${platform}`);
+      }
+      
+      // Save new code (expires in 10 minutes)
+      await redis.setex(userKey, 600, code);
+      await redis.setex(codeKey, 600, String(userId));
+    } catch (err) {
+      console.error("Redis temp code operations failed:", err);
+    }
+
+    return {
+      code,
+      userId,
+      platform
+    };
+  },
+
+  validateTempCode: async (code, platform) => {
+    const codeKey = `temp_code:code:${code}:${platform}`;
+    try {
+      const userId = await redis.get(codeKey);
+      if (userId) {
+        // One-time code: delete immediately
+        await redis.del(codeKey);
+        await redis.del(`temp_code:user:${userId}:${platform}`);
+        return {
+          userId: Number(userId),
+          platform
+        };
+      }
+    } catch (err) {
+      console.error("Redis temp code validation failed:", err);
     }
     return null;
   },
 
-  clearExpiredTempCodes: () => {
-    db.query("DELETE FROM temp_codes WHERE expires_at < datetime('now')").run();
+  clearExpiredTempCodes: async () => {
+    // Redis handles expiration automatically via TTL
   },
 
-  // Refresh Token operations
-  addRefreshToken: (token, userId) => {
-    // Delete any old refresh tokens for this user first (Refresh Token Rotation preparation)
-    db.query("DELETE FROM refresh_tokens WHERE user_id = $userId").run({ $userId: userId });
-
+  // Refresh Token operations (Moved to Redis)
+  addRefreshToken: async (token, userId) => {
     const hashed = hashToken(token);
-    const query = db.query(`
-      INSERT INTO refresh_tokens (token, user_id, expires_at)
-      VALUES ($token, $userId, datetime('now', '+7 days'))
-      RETURNING *
-    `);
-    return query.get({
-      $token: hashed,
-      $userId: userId
-    });
+    const userKey = `user:${userId}:active_refresh_token`;
+    const tokenKey = `refresh_token:${hashed}`;
+
+    try {
+      // Rotation: delete previous active refresh token for this user
+      const oldHashed = await redis.get(userKey);
+      if (oldHashed) {
+        await redis.del(`refresh_token:${oldHashed}`);
+      }
+
+      // Store new refresh token (expires in 7 days)
+      await redis.setex(tokenKey, 7 * 24 * 3600, String(userId));
+      await redis.setex(userKey, 7 * 24 * 3600, hashed);
+    } catch (err) {
+      console.error("Redis add refresh token failed:", err);
+    }
+
+    return {
+      token: hashed,
+      userId
+    };
   },
 
-  validateRefreshToken: (token) => {
+  validateRefreshToken: async (token) => {
     const hashed = hashToken(token);
-    const query = db.query(`
-      SELECT * FROM refresh_tokens
-      WHERE token = $token AND expires_at > datetime('now')
-    `);
-    return query.get({ $token: hashed });
+    const tokenKey = `refresh_token:${hashed}`;
+    try {
+      const userId = await redis.get(tokenKey);
+      if (userId) {
+        return {
+          token: hashed,
+          userId: Number(userId)
+        };
+      }
+    } catch (err) {
+      console.error("Redis validate refresh token failed:", err);
+    }
+    return null;
   },
 
-  deleteRefreshToken: (token) => {
+  deleteRefreshToken: async (token) => {
     const hashed = hashToken(token);
-    const query = db.query("DELETE FROM refresh_tokens WHERE token = $token");
-    query.run({ $token: hashed });
+    const tokenKey = `refresh_token:${hashed}`;
+    try {
+      const userId = await redis.get(tokenKey);
+      if (userId) {
+        await redis.del(tokenKey);
+        await redis.del(`user:${userId}:active_refresh_token`);
+      }
+    } catch (err) {
+      console.error("Redis delete refresh token failed:", err);
+    }
   },
 
-  clearExpiredRefreshTokens: () => {
-    db.query("DELETE FROM refresh_tokens WHERE expires_at < datetime('now')").run();
-  },
-
-
+  clearExpiredRefreshTokens: async () => {
+    // Redis handles expiration automatically via TTL
+  }
 };
 
-export default db;
+// Export prisma and redis clients for external usage
+export { prisma, redis };
+export default prisma;

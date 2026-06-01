@@ -104,16 +104,16 @@ export async function startTgListener(forwardHandler) {
           return;
         }
 
-        const validation = dbHelper.validateTempCode(code, "tg");
+        const validation = await dbHelper.validateTempCode(code, "tg");
         if (validation) {
           const chatTitle = ctx.chat.title || ctx.from?.first_name || "Telegram Chat";
-          dbHelper.addConnectedChat(validation.user_id, "tg", chatId, chatTitle);
+          await dbHelper.addConnectedChat(validation.userId, "tg", chatId, chatTitle);
           try {
             await ctx.reply(`Чат "${chatTitle}" успешно подключен к панели управления!`);
           } catch (err) {
             console.error("Failed to send connection success reply:", err);
           }
-          console.log(`Telegram Chat connected: userId=${validation.user_id} chatId=${chatId} title=${chatTitle}`);
+          console.log(`Telegram Chat connected: userId=${validation.userId} chatId=${chatId} title=${chatTitle}`);
         } else {
           try {
             await ctx.reply("Неверный или истекший пин-код подключения.");
@@ -124,7 +124,7 @@ export async function startTgListener(forwardHandler) {
         return;
       }
       // Dynamic routing to multiple targets (TG -> VK, TG -> TG, etc.)
-      const activeBridges = dbHelper.getBridgesBySource("tg", chatId);
+      const activeBridges = await dbHelper.getBridgesBySource("tg", chatId);
 
 
       for (const bridge of activeBridges) {

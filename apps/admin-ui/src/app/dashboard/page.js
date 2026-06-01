@@ -205,22 +205,22 @@ export default function Dashboard() {
 
       // Transform backend chats {vk: [], tg: []} to UI flat array format
       const flatChats = [
-        ...(chatsData.vk || []).map((c) => ({ id: c.chat_id, name: c.title, platform: "vk", externalId: String(c.chat_id) })),
-        ...(chatsData.tg || []).map((c) => ({ id: c.chat_id, name: c.title, platform: "tg", externalId: String(c.chat_id) }))
+        ...(chatsData.vk || []).map((c) => ({ id: c.chatId, name: c.title, platform: "vk", externalId: String(c.chatId) })),
+        ...(chatsData.tg || []).map((c) => ({ id: c.chatId, name: c.title, platform: "tg", externalId: String(c.chatId) }))
       ];
       setChats(flatChats);
 
       // Transform backend bridges to UI route format
       const mappedRoutes = (bridgesData || []).map((r) => ({
         id: r.id,
-        title: r.title || `${r.source_platform.toUpperCase()} -> ${r.target_platform.toUpperCase()}`,
-        sourceId: r.source_chat_id,
-        sourcePlatform: r.source_platform,
-        targetId: r.target_chat_id,
-        targetPlatform: r.target_platform,
-        isReversed: r.is_reversed === 1,
-        isActive: r.is_active === 1,
-        showAuthor: r.show_author == null ? true : r.show_author === 1
+        title: r.title || `${r.sourcePlatform.toUpperCase()} -> ${r.targetPlatform.toUpperCase()}`,
+        sourceId: r.sourceChatId,
+        sourcePlatform: r.sourcePlatform,
+        targetId: r.targetChatId,
+        targetPlatform: r.targetPlatform,
+        isReversed: r.isReversed === true || r.isReversed === 1,
+        isActive: r.isActive === true || r.isActive === 1,
+        showAuthor: r.showAuthor == null ? true : (r.showAuthor === true || r.showAuthor === 1)
       }));
       setRoutes(mappedRoutes);
     } catch (err) {
@@ -333,11 +333,11 @@ export default function Dashboard() {
         },
         body: JSON.stringify({
           title: newRouteTitle,
-          source_platform: sourcePlatform,
-          source_chat_id: Number(sourceId),
-          target_platform: targetPlatform,
-          target_chat_id: Number(targetId),
-          show_author: true
+          sourcePlatform: sourcePlatform,
+          sourceChatId: Number(sourceId),
+          targetPlatform: targetPlatform,
+          targetChatId: Number(targetId),
+          showAuthor: true
         })
       });
 
@@ -365,7 +365,7 @@ export default function Dashboard() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          is_reversed: route.isReversed ? 0 : 1
+          isReversed: !route.isReversed
         })
       });
       if (res.ok) {
@@ -385,7 +385,7 @@ export default function Dashboard() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          show_author: route.showAuthor ? 0 : 1
+          showAuthor: !route.showAuthor
         })
       });
       if (res.ok) {

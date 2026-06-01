@@ -4,13 +4,14 @@ services:
       context: .
       dockerfile: apps/bot-engine/Dockerfile
       target: runner
-    volumes:
-      - bot-data-local:/app/apps/bot-engine/data
     expose:
       - "4000"
     network_mode: host
     env_file:
       - .env
+    depends_on:
+      - redis
+      - postgres
     restart: unless-stopped
 
   admin-ui:
@@ -27,5 +28,26 @@ services:
       - bot-engine
     restart: unless-stopped
 
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "6379:6379" # Exposed to host so host network mode bot-engine can connect to localhost
+    volumes:
+      - redis-data-local:/data
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:18-alpine
+    ports:
+      - "5432:5432" # Exposed to host so host network mode bot-engine can connect to localhost
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres_password}
+      - POSTGRES_DB=${POSTGRES_DB:-chat_forwarder}
+    volumes:
+      - postgres-data-local:/var/lib/postgresql
+    restart: unless-stopped
+
 volumes:
-  bot-data-local:
+  redis-data-local:
+  postgres-data-local:

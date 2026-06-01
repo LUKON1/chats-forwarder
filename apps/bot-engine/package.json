@@ -4,16 +4,21 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
-    "dev": "node --watch --experimental-sqlite src/index.js",
+    "dev": "node --watch src/index.js",
     "start": "node src/index.js"
   },
   "dependencies": {
+    "@prisma/client": "6",
     "bcryptjs": "^2.4.3",
     "grammy": "1.36.1",
     "https-proxy-agent": "9.0.0",
+    "ioredis": "^5.11.0",
     "jsonwebtoken": "^9.0.3",
     "node-fetch": "^2.7.0",
     "socks-proxy-agent": "10.0.0",
     "vk-io": "4.10.1"
+  },
+  "devDependencies": {
+    "prisma": "6"
   }
 }

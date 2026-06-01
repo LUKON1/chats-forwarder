@@ -15,6 +15,9 @@ services:
       - "4000"
     env_file:
       - .env
+    depends_on:
+      - redis
+      - postgres
     restart: unless-stopped
 
   admin-ui:
@@ -35,3 +38,27 @@ services:
     depends_on:
       - bot-engine
     restart: unless-stopped
+
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data-dev:/data
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:18-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres_password}
+      - POSTGRES_DB=${POSTGRES_DB:-chat_forwarder}
+    volumes:
+      - postgres-data-dev:/var/lib/postgresql
+    restart: unless-stopped
+
+volumes:
+  redis-data-dev:
+  postgres-data-dev:

@@ -1,6 +1,6 @@
 import { vk } from "./vk.js";
 import { bot, sendText, sendPhoto, sendMediaGroup, sendDocument, sendVoice, agent } from "./tg.js";
-import { dbHelper } from "./db.js";
+import { dbHelper, redis } from "./db.js";
 import { mkdirSync, existsSync, unlinkSync, readFileSync, promises as fsPromises } from "fs";
 import { join } from "path";
 import crypto from "crypto";
@@ -60,28 +60,38 @@ async function downloadTelegramFile(fileId) {
   return tempFilePath;
 }
 
-// Name cache for VK users and groups
-const vkNameCache = new Map();
-
-// Resolve VK user or community names
+// Resolve VK user or community names with Redis caching (TTL 24 hours)
 async function resolveVkName(senderId) {
-  if (vkNameCache.has(senderId)) return vkNameCache.get(senderId);
+  const cacheKey = `vk:name:${senderId}`;
+  try {
+    const cachedName = await redis.get(cacheKey);
+    if (cachedName) return cachedName;
+  } catch (err) {
+    console.error("Redis read error in resolveVkName:", err);
+  }
+
+  let name = String(senderId);
   try {
     if (senderId > 0) {
       const [user] = await vk.api.users.get({ user_ids: senderId });
-      const name = `${user.first_name} ${user.last_name}`;
-      vkNameCache.set(senderId, name);
-      return name;
+      name = `${user.first_name} ${user.last_name}`;
     } else if (senderId < 0) {
       const [group] = await vk.api.groups.getById({ group_ids: Math.abs(senderId) });
-      const name = group?.name || `Group ${Math.abs(senderId)}`;
-      vkNameCache.set(senderId, name);
-      return name;
+      name = group?.name || `Group ${Math.abs(senderId)}`;
+    } else {
+      name = "VK User";
     }
-    return "VK User";
-  } catch {
-    return String(senderId);
+
+    try {
+      // Cache name for 24 hours
+      await redis.setex(cacheKey, 86400, name);
+    } catch (err) {
+      console.error("Redis write error in resolveVkName:", err);
+    }
+  } catch (err) {
+    console.error(`Failed to resolve VK name for senderId=${senderId}:`, err);
   }
+  return name;
 }
 
 // Extract VK nested messages recursively
@@ -144,36 +154,36 @@ function getVkVoiceUrl(attachment) {
 // Universal Forwarding Entrypoint
 export async function forwardMessage(ctx, bridge) {
   // If reversed, construct a virtual active bridge with swapped source and target fields
-  const activeBridge = bridge.is_reversed === 1
+  const activeBridge = bridge.isReversed
     ? {
         ...bridge,
-        source_platform: bridge.target_platform,
-        source_chat_id: bridge.target_chat_id,
-        target_platform: bridge.source_platform,
-        target_chat_id: bridge.source_chat_id
+        sourcePlatform: bridge.targetPlatform,
+        sourceChatId: bridge.targetChatId,
+        targetPlatform: bridge.sourcePlatform,
+        targetChatId: bridge.sourceChatId
       }
     : bridge;
 
-  const { target_platform } = activeBridge;
+  const { targetPlatform } = activeBridge;
 
-  if (target_platform === "tg") {
+  if (targetPlatform === "tg") {
     await forwardToTg(ctx, activeBridge);
-  } else if (target_platform === "vk") {
+  } else if (targetPlatform === "vk") {
     await forwardToVk(ctx, activeBridge);
   }
 }
 
 // --- TARGET: TELEGRAM ---
 async function forwardToTg(ctx, bridge) {
-  const tgChatId = bridge.target_chat_id;
-  const sourcePlatform = bridge.source_platform;
+  const tgChatId = bridge.targetChatId;
+  const sourcePlatform = bridge.sourcePlatform;
   let logText = "";
 
   try {
     // A. SOURCE IS VK -> TARGET IS TG
     if (sourcePlatform === "vk") {
       const senderName = await resolveVkName(ctx.senderId);
-      const prefix = bridge.show_author ? `${senderName}: ` : "";
+      const prefix = bridge.showAuthor ? `${senderName}: ` : "";
 
       const msgData = await extractVkMessageData(ctx, true);
       const caption = msgData.text ? `${prefix}${msgData.text}` : (prefix ? prefix.slice(0, -2) : "");
@@ -241,7 +251,7 @@ async function forwardToTg(ctx, bridge) {
         ? (ctx.from.first_name + (ctx.from.last_name ? ` ${ctx.from.last_name}` : ""))
         : (authorSignature ? `${ctx.chat.title} (${authorSignature})` : (ctx.chat.title || "Telegram Channel"));
 
-      const prefix = bridge.show_author ? `${senderName}: ` : "";
+      const prefix = bridge.showAuthor ? `${senderName}: ` : "";
       const messageText = message?.text || message?.caption || "";
       logText = messageText || "[TG-to-TG copy]";
 
@@ -271,7 +281,7 @@ async function forwardToTg(ctx, bridge) {
 
 // --- TARGET: VK ---
 async function forwardToVk(ctx, bridge) {
-  const sourcePlatform = bridge.source_platform;
+  const sourcePlatform = bridge.sourcePlatform;
 
   if (sourcePlatform === "tg") {
     const message = ctx.message || ctx.channelPost;
@@ -303,7 +313,7 @@ async function forwardToVk(ctx, bridge) {
 
 // A. SOURCE IS TG -> TARGET IS VK (Single message)
 async function processSingleTgToVk(ctx, bridge) {
-  const vkPeerId = bridge.target_chat_id;
+  const vkPeerId = bridge.targetChatId;
   let logText = "";
   const tempFiles = [];
   try {
@@ -318,7 +328,7 @@ async function processSingleTgToVk(ctx, bridge) {
       ? (ctx.from.first_name + (ctx.from.last_name ? ` ${ctx.from.last_name}` : ""))
       : (authorSignature ? `${ctx.chat.title} (${authorSignature})` : (ctx.chat.title || "Telegram Channel"));
 
-    const prefix = bridge.show_author ? `${senderName}: ` : "";
+    const prefix = bridge.showAuthor ? `${senderName}: ` : "";
     const fullText = messageText ? `${prefix}${messageText}` : (prefix ? prefix.slice(0, -2) : "");
     logText = messageText || "[Media attachment]";
 
@@ -382,7 +392,7 @@ async function flushTgMediaGroupToVk(mediaGroupId) {
   mediaGroupBuffers.delete(mediaGroupId);
 
   const { messages, bridge } = buffer;
-  const vkPeerId = bridge.target_chat_id;
+  const vkPeerId = bridge.targetChatId;
   let logText = "";
   const tempFiles = [];
 
@@ -405,7 +415,7 @@ async function flushTgMediaGroupToVk(mediaGroupId) {
       ? (firstWithText.from.first_name + (firstWithText.from.last_name ? ` ${firstWithText.from.last_name}` : ""))
       : (authorSignature ? `${firstWithText.chat.title} (${authorSignature})` : (firstWithText.chat.title || "Telegram Channel"));
 
-    const prefix = bridge.show_author ? `${senderName}: ` : "";
+    const prefix = bridge.showAuthor ? `${senderName}: ` : "";
     const messageText = firstMsg?.text || firstMsg?.caption || "";
     const fullText = messageText ? `${prefix}${messageText}` : (prefix ? prefix.slice(0, -2) : "");
     logText = messageText || "[Media Album]";
@@ -456,11 +466,11 @@ async function flushTgMediaGroupToVk(mediaGroupId) {
 
 // C. SOURCE IS VK -> TARGET IS VK
 async function processVkToVk(ctx, bridge) {
-  const vkPeerId = bridge.target_chat_id;
+  const vkPeerId = bridge.targetChatId;
   let logText = "";
   try {
     const senderName = await resolveVkName(ctx.senderId);
-    const prefix = bridge.show_author ? `${senderName}: ` : "";
+    const prefix = bridge.showAuthor ? `${senderName}: ` : "";
 
     const msgData = await extractVkMessageData(ctx, true);
     const fullText = msgData.text ? `${prefix}${msgData.text}` : (prefix ? prefix.slice(0, -2) : "");

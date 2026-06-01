@@ -43,7 +43,7 @@ export async function startVkListener(forwardHandler) {
           return;
         }
 
-        const validation = dbHelper.validateTempCode(code, "vk");
+        const validation = await dbHelper.validateTempCode(code, "vk");
         if (validation) {
           let chatTitle = "VK Chat";
           try {
@@ -55,9 +55,9 @@ export async function startVkListener(forwardHandler) {
             chatTitle = `VK Chat ${ctx.peerId}`;
           }
 
-          dbHelper.addConnectedChat(validation.user_id, "vk", ctx.peerId, chatTitle);
+          await dbHelper.addConnectedChat(validation.userId, "vk", ctx.peerId, chatTitle);
           await ctx.send(`Чат "${chatTitle}" успешно подключен к панели управления!`);
-          console.log(`VK Chat connected: userId=${validation.user_id} peerId=${ctx.peerId} title=${chatTitle}`);
+          console.log(`VK Chat connected: userId=${validation.userId} peerId=${ctx.peerId} title=${chatTitle}`);
         } else {
           await ctx.send("Неверный или истекший пин-код подключения.");
         }
@@ -65,7 +65,7 @@ export async function startVkListener(forwardHandler) {
       }
 
       // Dynamic routing to multiple targets (VK -> TG, VK -> VK, etc.)
-      const activeBridges = dbHelper.getBridgesBySource("vk", ctx.peerId);
+      const activeBridges = await dbHelper.getBridgesBySource("vk", ctx.peerId);
       
 
 
