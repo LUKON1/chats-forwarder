@@ -10,6 +10,7 @@
   "dependencies": {
     "@prisma/client": "6",
     "bcryptjs": "^2.4.3",
+    "bullmq": "^5.8.5",
     "grammy": "1.36.1",
     "https-proxy-agent": "9.0.0",
     "ioredis": "^5.11.0",

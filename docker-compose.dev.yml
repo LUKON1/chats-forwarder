@@ -1,5 +1,5 @@
 services:
-  bot-engine:
+  bot-engine-api:
     build:
       context: .
       dockerfile: apps/bot-engine/Dockerfile
@@ -13,6 +13,27 @@ services:
       - /app/apps/bot-engine/node_modules
     expose:
       - "4000"
+    environment:
+      - RUN_MODE=api
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - postgres
+    restart: unless-stopped
+
+  bot-engine-worker:
+    build:
+      context: .
+      dockerfile: apps/bot-engine/Dockerfile
+      target: dev
+    network_mode: host
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/apps/bot-engine/node_modules
+    environment:
+      - RUN_MODE=worker
     env_file:
       - .env
     depends_on:
@@ -36,7 +57,7 @@ services:
     environment:
       - BACKEND_URL=http://localhost:4000
     depends_on:
-      - bot-engine
+      - bot-engine-api
     restart: unless-stopped
 
   redis:

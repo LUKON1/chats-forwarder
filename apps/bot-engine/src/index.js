@@ -1,11 +1,11 @@
 import crypto from "crypto";
 import http from "node:http";
 import bcrypt from "bcryptjs";
-import { startVkListener } from "./vk.js";
-import { startTgListener } from "./tg.js";
-import { forwardVkToTg, forwardTgToVk } from "./forwarder.js";
+import { adapterRegistry } from "./adapters/registry.js";
+import { startQueueWorkers } from "./queue.js";
 import { dbHelper } from "./db.js";
 import { generateAccessToken, generateRefreshToken, verifyAccessToken, verifyRefreshToken } from "./jwt.js";
+import { bot } from "./tg.js";
 
 // In-memory request store for rate limiting
 const ipRequests = new Map();
@@ -151,23 +151,30 @@ function createFetchServer(fetchHandler, port) {
 console.log("Chat Forwarder engine starting...");
 console.log("DEBUG: PROXY_URL in env =", process.env.PROXY_URL);
 
-// Start background listeners
-startVkListener(forwardVkToTg).then(() => {
-  console.log("VK integration active");
-}).catch((err) => {
-  console.error("VK setup failed:", err);
-});
+const RUN_MODE = process.env.RUN_MODE || "all";
 
-startTgListener(forwardTgToVk).then(() => {
-  console.log("Telegram integration active");
-}).catch((err) => {
-  console.error("Telegram setup failed:", err);
-});
+if (RUN_MODE === "all" || RUN_MODE === "worker") {
+  startQueueWorkers();
+}
 
-// Garbage collection of temp codes and refresh tokens is handled automatically by Redis TTL
+if (RUN_MODE === "all" || RUN_MODE === "api") {
+  console.log(`Starting HTTP API server on port ${API_PORT}...`);
 
-// Start HTTP REST API Server
-createFetchServer(async (req) => {
+  // Auto-configure Telegram Webhook if BASE_DOMAIN is set in environment
+  if (process.env.BASE_DOMAIN) {
+    const domain = process.env.BASE_DOMAIN;
+    const protocol = domain.startsWith("http://") || domain.startsWith("https://") ? "" : "https://";
+    const tgWebhookUrl = `${protocol}${domain}/api/webhooks/tg`;
+    console.log(`Configuring Telegram webhook URL: ${tgWebhookUrl}`);
+    bot.api.setWebhook(tgWebhookUrl).then(() => {
+      console.log("Telegram webhook set successfully");
+    }).catch(err => {
+      console.error("Failed to set Telegram webhook:", err.message);
+    });
+  }
+
+  // Start HTTP REST API Server
+  createFetchServer(async (req) => {
     const url = new URL(req.url);
     const path = url.pathname;
     const method = req.method;
@@ -328,6 +335,18 @@ createFetchServer(async (req) => {
         resHeaders.append("Set-Cookie", "refresh_token=; HttpOnly; Path=/api/auth; SameSite=Strict; Max-Age=0; Secure");
         
         return new Response(JSON.stringify({ success: true }), { headers: resHeaders });
+      }
+
+      // PUBLIC ROUTE: Webhook for Telegram
+      if (path === "/api/webhooks/tg" && method === "POST") {
+        const tgAdapter = adapterRegistry.get("tg");
+        return tgAdapter.handleWebhook(req);
+      }
+
+      // PUBLIC ROUTE: Webhook for VK
+      if (path === "/api/webhooks/vk" && method === "POST") {
+        const vkAdapter = adapterRegistry.get("vk");
+        return vkAdapter.handleWebhook(req);
       }
 
       // 3. MIDDLEWARE: Verify API_SECRET key or JWT user token for all other routes
@@ -519,5 +538,5 @@ createFetchServer(async (req) => {
       });
     }
   }, API_PORT);
-
-console.log(`HTTP API server running on port ${API_PORT}`);
+  console.log(`HTTP API server running on port ${API_PORT}`);
+}
