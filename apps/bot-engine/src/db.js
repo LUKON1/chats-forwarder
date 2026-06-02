@@ -237,11 +237,39 @@ export const dbHelper = {
   },
 
   deleteConnectedChat: async (userId, platform, chatId) => {
+    const chatBigIntId = BigInt(chatId);
+
+    // 1. Find all bridges related to this chat to invalidate their caches later
+    const relatedBridges = await prisma.bridge.findMany({
+      where: {
+        userId,
+        OR: [
+          { sourcePlatform: platform, sourceChatId: chatBigIntId },
+          { targetPlatform: platform, targetChatId: chatBigIntId }
+        ]
+      }
+    });
+
+    // 2. Delete the related bridges
+    if (relatedBridges.length > 0) {
+      await prisma.bridge.deleteMany({
+        where: {
+          id: { in: relatedBridges.map(b => b.id) }
+        }
+      });
+      // Invalidate cache for each deleted bridge
+      for (const bridge of relatedBridges) {
+        await invalidateBridgeCache(bridge.sourcePlatform, bridge.sourceChatId);
+        await invalidateBridgeCache(bridge.targetPlatform, bridge.targetChatId);
+      }
+    }
+
+    // 3. Delete the connected chat
     await prisma.connectedChat.deleteMany({
       where: {
         userId,
         platform,
-        chatId: BigInt(chatId)
+        chatId: chatBigIntId
       }
     });
   },

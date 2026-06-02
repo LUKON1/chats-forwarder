@@ -92,6 +92,16 @@ export async function startTgListener(forwardHandler) {
 
       // 1. Handle connect pin-code onboarding command
       if (text.startsWith("/connect")) {
+        // Disallow connecting personal user messages
+        if (chatId > 0) {
+          try {
+            await ctx.reply("Этот бот предназначен для работы в группах и каналах. Добавьте его в вашу группу или канал и отправьте команду там.");
+          } catch (err) {
+            console.error("Failed to send context warning in TG:", err);
+          }
+          return;
+        }
+
         const parts = text.split(" ");
         const code = parts[1]?.trim();
 

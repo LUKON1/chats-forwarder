@@ -35,6 +35,12 @@ export async function startVkListener(forwardHandler) {
 
       // 1. Handle connect pin-code onboarding command
       if (text.startsWith("/connect")) {
+        // Disallow connecting personal user messages
+        if (ctx.peerId < 2000000000) {
+          await ctx.send("Бот работает только в групповых беседах. Добавьте бота в беседу и отправьте команду там.");
+          return;
+        }
+
         const parts = text.split(" ");
         const code = parts[1]?.trim();
 
@@ -46,18 +52,30 @@ export async function startVkListener(forwardHandler) {
         const validation = await dbHelper.validateTempCode(code, "vk");
         if (validation) {
           let chatTitle = "VK Chat";
+          let accessWarning = false;
           try {
             const res = await vk.api.messages.getConversationsById({
               peer_ids: ctx.peerId
             });
-            chatTitle = res.items[0]?.chat_settings?.title || `VK Chat ${ctx.peerId}`;
-          } catch {
+            if (res.items && res.items.length > 0 && res.items[0].chat_settings) {
+              chatTitle = res.items[0].chat_settings.title || `VK Chat ${ctx.peerId}`;
+            } else {
+              chatTitle = `VK Chat ${ctx.peerId}`;
+              accessWarning = true;
+            }
+          } catch (err) {
+            console.error("Failed to get VK conversation details:", err);
             chatTitle = `VK Chat ${ctx.peerId}`;
+            accessWarning = true;
           }
 
           await dbHelper.addConnectedChat(validation.userId, "vk", ctx.peerId, chatTitle);
-          await ctx.send(`Чат "${chatTitle}" успешно подключен к панели управления!`);
-          console.log(`VK Chat connected: userId=${validation.userId} peerId=${ctx.peerId} title=${chatTitle}`);
+          if (accessWarning) {
+            await ctx.send(`Чат "${chatTitle}" успешно подключен!\n\n Обратите внимание: бот не смог прочитать название беседы. Пожалуйста, сделайте бота администратором беседы и разрешите ему доступ к переписке в настройках сообщества, чтобы пересылка работала корректно.`);
+          } else {
+            await ctx.send(`Чат "${chatTitle}" успешно подключен к панели управления!`);
+          }
+          console.log(`VK Chat connected: userId=${validation.userId} peerId=${ctx.peerId} title=${chatTitle} (accessWarning=${accessWarning})`);
         } else {
           await ctx.send("Неверный или истекший пин-код подключения.");
         }
