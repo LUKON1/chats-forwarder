@@ -10,6 +10,7 @@ import { forwardTgToVk } from "../forwarder.js";
 export class TelegramAdapter extends BaseAdapter {
   constructor() {
     super("tg");
+    this.botInitialized = false;
     this.initListeners();
   }
 
@@ -210,8 +211,9 @@ export class TelegramAdapter extends BaseAdapter {
   async handleWebhook(req) {
     try {
       const body = await req.json();
-      if (!bot.botInfo) {
+      if (!this.botInitialized) {
         await bot.init();
+        this.botInitialized = true;
       }
       await bot.handleUpdate(body);
       return new Response(JSON.stringify({ success: true }), {
