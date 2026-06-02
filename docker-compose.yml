@@ -9,6 +9,8 @@ services:
       - "4000:4000"
     environment:
       - RUN_MODE=api
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      - REDIS_URL=redis://redis:6379
     env_file:
       - .env
     networks:
@@ -25,6 +27,8 @@ services:
       dockerfile: apps/bot-engine/Dockerfile
     environment:
       - RUN_MODE=worker
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      - REDIS_URL=redis://redis:6379
     env_file:
       - .env
     networks:

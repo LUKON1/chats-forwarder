@@ -4,19 +4,23 @@ services:
       context: .
       dockerfile: apps/bot-engine/Dockerfile
       target: dev
-    network_mode: host
-    volumes:
-      # Mount the whole repository for live-reload
-      - .:/app
-      # Preserve container node_modules from being overridden by the host
-      - /app/node_modules
-      - /app/apps/bot-engine/node_modules
     expose:
       - "4000"
+    ports:
+      - "4000:4000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/apps/bot-engine/node_modules
     environment:
       - RUN_MODE=api
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_password}@postgres:5432/${POSTGRES_DB:-chat_forwarder}?schema=public
+      - REDIS_URL=redis://redis:6379
     env_file:
       - .env
+    networks:
+      - app
+      - db
     depends_on:
       - redis
       - postgres
@@ -27,15 +31,19 @@ services:
       context: .
       dockerfile: apps/bot-engine/Dockerfile
       target: dev
-    network_mode: host
     volumes:
       - .:/app
       - /app/node_modules
       - /app/apps/bot-engine/node_modules
     environment:
       - RUN_MODE=worker
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_password}@postgres:5432/${POSTGRES_DB:-chat_forwarder}?schema=public
+      - REDIS_URL=redis://redis:6379
     env_file:
       - .env
+    networks:
+      - app
+      - db
     depends_on:
       - redis
       - postgres
@@ -46,18 +54,21 @@ services:
       context: .
       dockerfile: apps/admin-ui/Dockerfile
       target: dev
-    network_mode: host
+    expose:
+      - "3000"
+    ports:
+      - "3000:3000"
     volumes:
       - .:/app
       - /app/node_modules
       - /app/apps/admin-ui/node_modules
       - /app/apps/admin-ui/.next  
-    expose:
-      - "3000"
     environment:
-      - BACKEND_URL=http://localhost:4000
+      - BACKEND_URL=http://bot-engine-api:4000
     depends_on:
       - bot-engine-api
+    networks:
+      - app
     restart: unless-stopped
 
   redis:
@@ -66,6 +77,8 @@ services:
       - "6379:6379"
     volumes:
       - redis-data-dev:/data
+    networks:
+      - db
     restart: unless-stopped
 
   postgres:
@@ -78,7 +91,16 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-chat_forwarder}
     volumes:
       - postgres-data-dev:/var/lib/postgresql
+    networks:
+      - db
     restart: unless-stopped
+
+networks:
+  app:
+    driver: bridge
+  db:
+    driver: bridge
+    internal: true
 
 volumes:
   redis-data-dev:
