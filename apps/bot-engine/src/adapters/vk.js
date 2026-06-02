@@ -92,14 +92,12 @@ export class VkAdapter extends BaseAdapter {
   initListeners() {
     vk.updates.on("message_new", async (ctx) => {
       try {
-        // Skip updates sent by this bot itself to prevent loops
         if (ctx.senderId === -vk.updates.groupId) return;
 
         const text = ctx.text || "";
 
         // 1. Handle connect pin-code onboarding command
         if (text.startsWith("/connect")) {
-          // Disallow connecting personal user messages
           if (ctx.peerId < 2000000000) {
             await ctx.send("Бот работает только в групповых беседах. Добавьте бота в беседу и отправьте команду там.");
             return;
@@ -206,39 +204,28 @@ export class VkAdapter extends BaseAdapter {
     });
   }
 
-  // Sends a single photo
+  // Sends a single photo by fetching it to memory buffer and uploading via custom FormData request
   async sendPhoto(chatId, url, caption) {
     const buffer = await this.downloadUrlToBuffer(url);
-    const attachment = await vk.upload.messagePhoto({
-      source: {
-        value: buffer,
-        filename: "photo.jpg"
-      },
-      peer_id: chatId
-    });
+    const attachment = await this.uploadFileToVkServer(chatId, "photo", buffer, "photo.jpg");
 
     return vk.api.messages.send({
       peer_id: chatId,
       message: caption,
-      attachment: `photo${attachment.ownerId}_${attachment.id}`,
+      attachment,
       random_id: Math.floor(Math.random() * 1e15)
     });
   }
 
   // Sends an array of photos as a single media group (album)
+  // Utilizes Promise.all for parallel uploads to prevent network timeouts
   async sendMediaGroup(chatId, urls, caption) {
-    const attachments = [];
-    for (const url of urls) {
+    const uploadPromises = urls.map(async (url) => {
       const buffer = await this.downloadUrlToBuffer(url);
-      const photo = await vk.upload.messagePhoto({
-        source: {
-          value: buffer,
-          filename: "photo.jpg"
-        },
-        peer_id: chatId
-      });
-      attachments.push(`photo${photo.ownerId}_${photo.id}`);
-    }
+      return this.uploadFileToVkServer(chatId, "photo", buffer, "photo.jpg");
+    });
+
+    const attachments = await Promise.all(uploadPromises);
 
     return vk.api.messages.send({
       peer_id: chatId,
@@ -248,44 +235,65 @@ export class VkAdapter extends BaseAdapter {
     });
   }
 
-  // Sends a document
+  // Sends a document by downloading it to memory buffer and uploading via custom FormData request
   async sendDocument(chatId, url, filename, caption) {
     const buffer = await this.downloadUrlToBuffer(url);
-    const doc = await vk.upload.messageDocument({
-      source: {
-        value: buffer,
-        filename
-      },
-      peer_id: chatId,
-      title: filename
-    });
+    const attachment = await this.uploadFileToVkServer(chatId, "doc", buffer, filename);
 
     return vk.api.messages.send({
       peer_id: chatId,
       message: caption,
-      attachment: `doc${doc.ownerId}_${doc.id}`,
+      attachment,
       random_id: Math.floor(Math.random() * 1e15)
     });
   }
 
-  // Sends a voice message
+  // Sends a voice message by downloading it to memory buffer and uploading as audio message
   async sendVoice(chatId, url) {
     const buffer = await this.downloadUrlToBuffer(url);
-    const voice = await vk.upload.messageDocument({
-      source: {
-        value: buffer,
-        filename: "voice.ogg"
-      },
-      peer_id: chatId,
-      type: "audio_message",
-      title: "Voice Message"
-    });
+    const attachment = await this.uploadFileToVkServer(chatId, "audio_message", buffer, "voice.ogg");
 
     return vk.api.messages.send({
       peer_id: chatId,
-      attachment: `doc${voice.ownerId}_${voice.id}`,
+      attachment,
       random_id: Math.floor(Math.random() * 1e15)
     });
+  }
+
+  // Custom FormData uploader to avoid inconsistencies in different vk-io upload versions
+  async uploadFileToVkServer(peerId, type, buffer, filename) {
+    const file = new File([buffer], filename);
+    const formData = new FormData();
+
+    let uploadUrl, saveRes, attachmentString;
+
+    if (type === "photo") {
+      const server = await vk.api.photos.getMessagesUploadServer({ peer_id: peerId });
+      uploadUrl = server.upload_url;
+      formData.append("photo", file);
+      
+      const uploadRes = await fetch(uploadUrl, { method: "POST", body: formData });
+      const uploadJson = await uploadRes.json();
+      const [saved] = await vk.api.photos.saveMessagesPhoto(uploadJson);
+      attachmentString = `photo${saved.owner_id}_${saved.id}`;
+    } else {
+      // type can be "doc" or "audio_message"
+      const server = await vk.api.docs.getMessagesUploadServer({ peer_id: peerId, type });
+      uploadUrl = server.upload_url;
+      formData.append("file", file);
+
+      const uploadRes = await fetch(uploadUrl, { method: "POST", body: formData });
+      const uploadJson = await uploadRes.json();
+      const saved = await vk.api.docs.save({ file: uploadJson.file, title: filename });
+      
+      if (type === "audio_message") {
+        attachmentString = `doc${saved.audio_message.owner_id}_${saved.audio_message.id}`;
+      } else {
+        attachmentString = `doc${saved.doc.owner_id}_${saved.doc.id}`;
+      }
+    }
+
+    return attachmentString;
   }
 
   // Helper to fetch URL to memory buffer
@@ -319,6 +327,13 @@ export class VkAdapter extends BaseAdapter {
   async handleWebhook(req) {
     try {
       const body = await req.json();
+
+      // Verify VK secret key if configured
+      const vkSecret = process.env.VK_SECRET_KEY;
+      if (vkSecret && body.secret !== vkSecret) {
+        console.warn("VK Webhook secret mismatch");
+        return new Response("forbidden", { status: 403 });
+      }
       
       if (body.type === "confirmation") {
         const confirmationCode = process.env.VK_CONFIRMATION_CODE || "";
