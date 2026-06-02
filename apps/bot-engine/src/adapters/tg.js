@@ -210,6 +210,9 @@ export class TelegramAdapter extends BaseAdapter {
   async handleWebhook(req) {
     try {
       const body = await req.json();
+      if (!bot.botInfo) {
+        await bot.init();
+      }
       await bot.handleUpdate(body);
       return new Response(JSON.stringify({ success: true }), {
         status: 200,
