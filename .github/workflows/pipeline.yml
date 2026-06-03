@@ -23,7 +23,7 @@ jobs:
           bun --filter chat-forwarder-admin-ui build
 
       - name: Trivy scan
-        uses: aquasecurity/trivy-action@dfd57c2a79ccb4a39031c26b38c22ab49704c7b8 # v0.28.0
+        uses: aquasecurity/trivy-action@11270b21843b092be0cdff5e082cb22b9c78ea2a # v0.36.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
