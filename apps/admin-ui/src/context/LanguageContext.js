@@ -250,7 +250,10 @@ export function LanguageProvider({ children }) {
   useEffect(() => {
     const saved = localStorage.getItem("locale");
     if (saved && (saved === "ru" || saved === "en")) {
-      setLocale(saved);
+      /* Defer state update to avoid synchronous cascading renders */
+      setTimeout(() => {
+        setLocale(saved);
+      }, 0);
     }
   }, []);
 

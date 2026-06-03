@@ -27,10 +27,13 @@ export default function Header() {
 
   /* Check authentication status on mount and path changes */
   useEffect(() => {
-    setMounted(true);
-    const loggedIn = localStorage.getItem("is_logged_in") === "true";
-    setIsLoggedIn(loggedIn);
-    setIsMenuOpen(false);
+    /* Defer state updates to avoid synchronous cascading renders */
+    setTimeout(() => {
+      setMounted(true);
+      const loggedIn = localStorage.getItem("is_logged_in") === "true";
+      setIsLoggedIn(loggedIn);
+      setIsMenuOpen(false);
+    }, 0);
   }, [pathname]);
 
   // Handle mobile menu slide/fade transition with GSAP

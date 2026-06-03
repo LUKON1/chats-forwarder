@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { gsap } from "gsap";
 import dogGif from "@/assets/dog.gif";
 import birdGif from "@/assets/bird.gif";
@@ -210,10 +211,12 @@ export default function MessageFlowAnimation({
             zIndex: 12,
           }}
         >
-          <img
+          <Image
             src={gifSrc}
             alt={sourcePlatform}
-            className="w-full h-full object-contain"
+            className="object-contain"
+            fill
+            unoptimized
           />
         </div>
       ))}

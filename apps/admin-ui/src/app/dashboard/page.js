@@ -239,8 +239,11 @@ export default function Dashboard() {
     if (!loggedIn || !token) {
       push("/login");
     } else {
-      setIsAuthenticated(true);
-      loadData();
+      /* Defer state updates to avoid synchronous cascading renders */
+      setTimeout(() => {
+        setIsAuthenticated(true);
+        loadData();
+      }, 0);
     }
   }, [push, loadData]);
 
