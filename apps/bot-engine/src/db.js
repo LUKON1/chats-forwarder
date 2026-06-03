@@ -83,6 +83,9 @@ export const dbHelper = {
   },
 
   getBridgesBySource: async (platform, chatId) => {
+    if (chatId === undefined || chatId === null || isNaN(Number(chatId))) {
+      return [];
+    }
     const cacheKey = `bridge:source:${platform}:${Number(chatId)}`;
     try {
       const cached = await redis.get(cacheKey);

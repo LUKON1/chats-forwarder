@@ -148,66 +148,49 @@ function createFetchServer(fetchHandler, port) {
   }).listen(port);
 }
 
-console.log("Chat Forwarder engine starting...");
-console.log("DEBUG: PROXY_URL in env =", process.env.PROXY_URL);
-
 const RUN_MODE = process.env.RUN_MODE || "all";
 
-if (RUN_MODE === "all" || RUN_MODE === "worker") {
+console.log(`[Engine] Chat Forwarder engine starting... (RUN_MODE: ${RUN_MODE})`);
+console.log(`[Engine] Proxy gateway configured: ${process.env.PROXY_URL ? "Yes" : "No"}`);
+
+if ((RUN_MODE === "all" || RUN_MODE === "worker") && process.env.NODE_ENV !== "test") {
   startQueueWorkers();
 }
 
-if (RUN_MODE === "all" || RUN_MODE === "api") {
-  console.log(`Starting HTTP API server on port ${API_PORT}...`);
+export const apiHandler = async (req) => {
+  const url = new URL(req.url);
+  const path = url.pathname;
+  const method = req.method;
 
-  // Auto-configure Telegram Webhook if BASE_DOMAIN is set in environment
-  if (process.env.BASE_DOMAIN) {
-    const domain = process.env.BASE_DOMAIN;
-    const protocol = domain.startsWith("http://") || domain.startsWith("https://") ? "" : "https://";
-    const tgWebhookUrl = `${protocol}${domain}/api/webhooks/tg`;
-    console.log(`Configuring Telegram webhook URL: ${tgWebhookUrl}`);
-    bot.api.setWebhook(tgWebhookUrl).then(() => {
-      console.log("Telegram webhook set successfully");
-    }).catch(err => {
-      console.error("Failed to set Telegram webhook:", err.message);
-    });
+  // CORS Headers for API requests supporting cookies
+  const origin = req.headers.get("origin");
+  const headers = {
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Content-Type": "application/json"
+  };
+
+  if (origin) {
+    headers["Access-Control-Allow-Origin"] = origin;
+    headers["Access-Control-Allow-Credentials"] = "true";
+  } else {
+    headers["Access-Control-Allow-Origin"] = "*";
   }
 
-  // Start HTTP REST API Server
-  createFetchServer(async (req) => {
-    const url = new URL(req.url);
-    const path = url.pathname;
-    const method = req.method;
+  if (method === "OPTIONS") {
+    return new Response(null, { headers });
+  }
 
-    // CORS Headers for API requests supporting cookies
-    const origin = req.headers.get("origin");
-    const headers = {
-      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      "Content-Type": "application/json"
-    };
-
-    if (origin) {
-      headers["Access-Control-Allow-Origin"] = origin;
-      headers["Access-Control-Allow-Credentials"] = "true";
-    } else {
-      headers["Access-Control-Allow-Origin"] = "*";
+  // Apply Rate Limiter to login and register routes
+  if (path.startsWith("/api/auth/login") || path.startsWith("/api/auth/register")) {
+    const limitResponse = authLimiter(req);
+    if (limitResponse) {
+      Object.entries(headers).forEach(([k, v]) => limitResponse.headers.set(k, v));
+      return limitResponse;
     }
+  }
 
-    if (method === "OPTIONS") {
-      return new Response(null, { headers });
-    }
-
-    // Apply Rate Limiter to login and register routes
-    if (path.startsWith("/api/auth/login") || path.startsWith("/api/auth/register")) {
-      const limitResponse = authLimiter(req);
-      if (limitResponse) {
-        Object.entries(headers).forEach(([k, v]) => limitResponse.headers.set(k, v));
-        return limitResponse;
-      }
-    }
-
-    try {
+  try {
       // 1. PUBLIC ROUTE: Auth login (using Bun.password + JWT generation)
       if (path === "/api/auth/login" && method === "POST") {
         const { username, password } = await req.json();
@@ -361,7 +344,7 @@ if (RUN_MODE === "all" || RUN_MODE === "api") {
       }
 
       let verifiedUserId = null;
-      const isSystemAccess = token === API_SECRET;
+      const isSystemAccess = token === (process.env.API_SECRET || API_SECRET);
 
       if (isSystemAccess) {
         // System access (e.g. CLI or trusted automation)
@@ -536,7 +519,30 @@ if (RUN_MODE === "all" || RUN_MODE === "api") {
         status: 500,
         headers
       });
-    }
-  }, API_PORT);
-  console.log(`HTTP API server running on port ${API_PORT}`);
+  }
+};
+
+// Start HTTP API server and bots listener depending on RUN_MODE
+if ((RUN_MODE === "all" || RUN_MODE === "api") && process.env.NODE_ENV !== "test") {
+  console.log(`[API] Starting HTTP API server on port ${API_PORT}...`);
+
+  // Auto-configure Telegram Webhook or fallback to Long Polling
+  if (process.env.BASE_DOMAIN) {
+    const domain = process.env.BASE_DOMAIN;
+    const protocol = domain.startsWith("http://") || domain.startsWith("https://") ? "" : "https://";
+    const tgWebhookUrl = `${protocol}${domain}/api/webhooks/tg`;
+    console.log(`[Telegram] Configuring webhook URL: ${tgWebhookUrl}`);
+    bot.api.setWebhook(tgWebhookUrl).then(() => {
+      console.log("[Telegram] Webhook set successfully");
+    }).catch(err => {
+      console.error("[Telegram] Failed to set webhook:", err.message);
+    });
+  } else {
+    console.log("[API] BASE_DOMAIN not set. Fallback to Long Polling...");
+    import("./tg.js").then(({ startTgListener }) => startTgListener().catch(console.error));
+    import("./vk.js").then(({ startVkListener }) => startVkListener().catch(console.error));
+  }
+
+  createFetchServer(apiHandler, API_PORT);
+  console.log(`[API] HTTP API server running on port ${API_PORT}`);
 }

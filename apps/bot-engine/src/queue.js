@@ -40,7 +40,7 @@ export const forwardingQueue = new Queue("forwarding-queue", {
   },
 });
 
-console.log("Forwarding queue initialized");
+console.log("[Queue] Forwarding queue initialized");
 
 // Start BullMQ workers to process message routing tasks
 export function startQueueWorkers() {
@@ -51,7 +51,7 @@ export function startQueueWorkers() {
 
       // --- SCENARIO A: FLUSH TG MEDIA GROUP (ALBUM) ---
       if (type === "flush_mediagroup") {
-        console.log(`[Queue Worker] Flushing media group ${mediaGroupId}`);
+        console.log(`[Queue] Flushing media group ${mediaGroupId}...`);
         const attachmentsKey = `tg:mediagroup:${mediaGroupId}:attachments`;
         const textKey = `tg:mediagroup:${mediaGroupId}:text`;
         const senderKey = `tg:mediagroup:${mediaGroupId}:sender`;
@@ -94,10 +94,11 @@ export function startQueueWorkers() {
   );
 
   worker.on("failed", (job, err) => {
-    console.error(`[Queue Worker Error] Job ${job?.id} failed permanently:`, err.message);
+    console.error(`[Queue] Job ${job?.id} failed permanently:`, err.message);
   });
 
-  console.log("BullMQ Queue Worker listening for jobs...");
+  console.log("[Queue] Worker listening for jobs...");
+  return worker;
 }
 
 // Executes message delivery via target adapter
@@ -160,4 +161,8 @@ async function processDelivery(data) {
   for (const voice of voices) {
     await targetAdapter.sendVoice(targetChatId, voice.url);
   }
+
+  const attachmentTypes = attachments.map(a => a.type);
+  const attachmentSummary = attachmentTypes.length > 0 ? ` with attachments [${attachmentTypes.join(", ")}]` : " (text only)";
+  console.log(`[Forwarder] Successfully forwarded message from ${sourcePlatform} to ${targetPlatform} (chatId: ${targetChatId})${attachmentSummary}`);
 }

@@ -1,0 +1,57 @@
+name: Production deployment
+on: 
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: clone repo
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@2e7a3eb0f2c41804709d73d6f1bfd830b50302b4 # v2.0.1
+        with:
+          bun-version: latest
+      
+      - name: install deps
+        run: bun install
+
+      - name: run tests
+        run: |
+          bun --filter bot-engine test
+          bun --filter chat-forwarder-admin-ui lint
+          bun --filter chat-forwarder-admin-ui build
+
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@dfd57c2a79ccb4a39031c26b38c22ab49704c7b8 # v0.28.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          exit-code: 1
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+        
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: ssh
+        uses: appleboy/ssh-action@7e3ab4b0ef093a21649987827de85e49f87f2fa8 # v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST_IP_FROMGATE}}
+          username: ${{ secrets.SSH_USER_FROMGATE}}
+          key: ${{ secrets.SSH_KEY_FROMGATE}}
+          port: 22
+          
+          proxy_host: ${{ secrets.SSH_HOST_IP_GATE }}
+          proxy_username: ${{ secrets.SSH_USER_GATE }}
+          proxy_key: ${{ secrets.SSH_KEY_GATE }}
+          proxy_port: 22
+
+          script_stop: true
+          script: |
+            echo "connected, starting deploy"
+            cd /data/Repos/chat-forwarder
+            git pull origin main
+            docker compose up -d --build --force-recreate
+            echo "docker buit"

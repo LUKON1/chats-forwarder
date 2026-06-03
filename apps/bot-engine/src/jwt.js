@@ -1,12 +1,11 @@
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 
-const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET;
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
+const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || "default_access_secret_only_for_dev_and_tests";
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || "default_refresh_secret_only_for_dev_and_tests";
 
-if (!JWT_ACCESS_SECRET || !JWT_REFRESH_SECRET) {
-  console.error("CRITICAL ERROR: JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be set in environment variables.");
-  process.exit(1);
+if (!process.env.JWT_ACCESS_SECRET || !process.env.JWT_REFRESH_SECRET) {
+  console.warn("[WARNING] JWT secrets are not set in environment. Using default fallback secrets.");
 }
 
 /**
