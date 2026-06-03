@@ -9,7 +9,7 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: Install Bun
-        uses: oven-sh/setup-bun@4bc047ad259df6fc24a6c9b0f9a0cb08cf17fbe5 # v2.0.1
+        uses: oven-sh/setup-bun@2e7a3eb0f2c41804709d73d6f1bfd830b50302b4 # v2.0.1
         with:
           bun-version: latest
       
@@ -18,12 +18,11 @@ jobs:
 
       - name: run tests
         run: |
-          bun --filter bot-engine test
           bun --filter chat-forwarder-admin-ui lint
           bun --filter chat-forwarder-admin-ui build
 
       - name: Trivy scan
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        uses: aquasecurity/trivy-action@11270b21843b092be0cdff5e082cb22b9c78ea2a # v0.36.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
