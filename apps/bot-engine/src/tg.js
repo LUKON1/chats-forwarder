@@ -8,7 +8,17 @@ const TG_BOT_TOKEN = process.env.TG_BOT_TOKEN || "123456:fake-token-for-testing-
 // Generate proxy agent for Telegram API
 export const agent = getProxyAgent("api.telegram.org");
 // Use node-fetch in Bun environment because native fetch does not support proxy agents
-const botConfig = agent ? { client: { baseFetchConfig: { agent, fetch: nodeFetch } } } : {};
+// Configure grammy to route requests through proxy agent using node-fetch
+const botConfig = agent ? {
+  client: {
+    fetch: (url, options) => {
+      return nodeFetch(url, {
+        ...options,
+        agent
+      });
+    }
+  }
+} : {};
 export const bot = new Bot(TG_BOT_TOKEN, botConfig);
 
 // Start Telegram listener (Long Polling)
