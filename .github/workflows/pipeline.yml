@@ -35,7 +35,7 @@ jobs:
     needs: test
     steps:
       - name: ssh
-        uses: appleboy/ssh-action@7e3ab4b0ef093a21649987827de85e49f87f2fa8 # v1.2.0
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17 # v1.2.0
         with:
           host: ${{ secrets.SSH_HOST_IP_FROMGATE}}
           username: ${{ secrets.SSH_USER_FROMGATE}}
