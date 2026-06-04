@@ -17,6 +17,7 @@ export default function MessageFlowAnimation({
   const containerRef = useRef(null);
   const animalRefs = useRef([]);
   const [containerWidth, setContainerWidth] = useState(0);
+  const [plateHeight, setPlateHeight] = useState(padding * 2 + iconSize);
 
   // ResizeObserver to track container width dynamically
   useEffect(() => {
@@ -32,15 +33,30 @@ export default function MessageFlowAnimation({
     return () => observer.disconnect();
   }, []);
 
+  // ResizeObserver to track plate height dynamically
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const plateElement = containerRef.current.previousElementSibling;
+    if (!plateElement) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setPlateHeight(entry.contentRect.height);
+      }
+    });
+
+    observer.observe(plateElement);
+    return () => observer.disconnect();
+  }, []);
+
   // Geometry calculations matching outer dimensions of the plate
   const D = padding * 2 + iconSize; // Pipe diameter matches plate height
   const gap = padding * 2;          // Distance between plate and pipe
-  const plateHeight = padding * 2 + iconSize;
   
   const y_bottom = plateHeight + gap + D / 2; // Center of horizontal pipe
   const x_left = D / 2;
   const x_right = containerWidth - D / 2;
-  const y_start = padding + iconSize / 2;    // Center of VK/TG icons
+  const y_start = plateHeight / 2;            // Dynamic center of VK/TG icons
 
   // GSAP animation loop for carrier conveyor chain
   useEffect(() => {
@@ -63,27 +79,34 @@ export default function MessageFlowAnimation({
       if (!el) return;
 
       gsap.killTweensOf(el);
-      gsap.set(el, { xPercent: -50, yPercent: -50 });
+      
+      // Hide initially and place at the starting node
+      gsap.set(el, {
+        xPercent: -50,
+        yPercent: -50,
+        x: direction === "left-to-right" ? x_left : x_right,
+        y: y_start,
+        opacity: 0,
+      });
 
       const tl = gsap.timeline({
         repeat: -1,
+        delay: (index * totalDuration) / totalAnimals,
         defaults: { ease: "none" },
       });
 
       if (direction === "left-to-right") {
-        gsap.set(el, { x: x_left, y: y_start });
-        tl.to(el, { y: y_bottom, duration: duration_down })
+        tl.set(el, { opacity: 1 })
+          .to(el, { y: y_bottom, duration: duration_down })
           .to(el, { x: x_right, duration: duration_horizontal })
           .to(el, { y: y_start, duration: duration_up });
       } else {
-        gsap.set(el, { x: x_right, y: y_start });
-        tl.to(el, { y: y_bottom, duration: duration_down })
+        tl.set(el, { opacity: 1 })
+          .to(el, { y: y_bottom, duration: duration_down })
           .to(el, { x: x_left, duration: duration_horizontal })
           .to(el, { y: y_start, duration: duration_up });
       }
 
-      // Offset starting progress of each animal to distribute them evenly
-      tl.progress(index / totalAnimals);
       timelines.push(tl);
     });
 

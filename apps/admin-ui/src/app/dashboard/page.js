@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import TelegramIcon from "@/assets/icons/TelegramIcon";
 import VkIcon from "@/assets/icons/VkIcon";
+import LinkArrowIcon from "@/assets/icons/LinkArrowIcon";
 import MessageFlowAnimation from "@/components/MessageFlowAnimation";
 import { useLanguage } from "@/context/LanguageContext";
 import Dropdown from "@/components/Dropdown";
@@ -11,8 +12,28 @@ import { gsap } from "gsap";
 import FlowArrowIcon from "@/assets/icons/FlowArrowIcon";
 
 const platformOptions = [
-  { value: "vk", label: "VKontakte" },
-  { value: "tg", label: "Telegram" }
+  {
+    id: "vk",
+    name: "VKontakte",
+    handle: "Chats Forwarder",
+    url: "https://vk.com/club239265109",
+    Icon: VkIcon,
+    bgClass: "fill-cerulean-600",
+    accent: "bg-cerulean-600",
+    border: "border-cerulean-600",
+    hoverBg: "hover:bg-cerulean-950/20"
+  },
+  {
+    id: "tg",
+    name: "Telegram",
+    handle: "@chatsForwarderbot",
+    url: "https://t.me/chatsForwarderbot",
+    Icon: TelegramIcon,
+    bgClass: "fill-cerulean-500",
+    accent: "bg-cerulean-500",
+    border: "border-cerulean-500",
+    hoverBg: "hover:bg-cerulean-950/20"
+  }
 ];
 
 export default function Dashboard() {
@@ -482,7 +503,7 @@ export default function Dashboard() {
               {/* Tab 1: Routes */}
               {activeTab === "routes" && (
                 <div className="space-y-8">
-                  <div className="flex items-center justify-between border-b-2 border-black pb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-black pb-4">
                     <div>
                       <h2 className="text-2xl font-black uppercase text-lime-cream-200">{t("active_routes")}</h2>
                       <p className="text-xs text-lime-cream-400 font-mono mt-1">{t("total_routes")}: {routes.length}</p>
@@ -490,7 +511,7 @@ export default function Dashboard() {
                     <button
                       onClick={() => setIsCreatingRoute(!isCreatingRoute)}
                       type="button"
-                      className="px-5 py-3 bg-tropical-teal-500 text-black text-sm font-black uppercase tracking-wider border-2 border-black neo-button"
+                      className="w-full sm:w-auto px-5 py-3 bg-tropical-teal-500 text-black text-sm font-black uppercase tracking-wider border-2 border-black neo-button text-center"
                     >
                       {isCreatingRoute ? t("close") : t("create_route")}
                     </button>
@@ -581,7 +602,7 @@ export default function Dashboard() {
                           {/* Top state accent bar */}
                           <div className="h-2 border-b-2 border-black bg-lime-cream-400" />
                           
-                          <div className="p-6 space-y-6">
+                          <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
                             {/* Header Details */}
                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                               <div>
@@ -591,7 +612,7 @@ export default function Dashboard() {
                               </div>
                               
                               {/* Top Controls */}
-                              <div className="flex items-center space-x-3 w-full md:w-auto justify-end">
+                              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-start md:justify-end">
                                 <button
                                   onClick={() => handleToggleShowAuthor(route)}
                                   type="button"
@@ -618,20 +639,20 @@ export default function Dashboard() {
 
                             {/* Pipeline Node visualization with U-shape Conveyor Animation */}
                             <div className="relative pb-28">
-                              <div className="flex justify-between items-center bg-yale-blue-950 p-4 border-2 border-black relative z-20">
+                              <div className="flex justify-between items-center bg-yale-blue-950 p-2.5 sm:p-4 border-2 border-black relative z-20 min-w-0 gap-2">
                                 {/* Left Platform Node */}
-                                <div className="flex items-center space-x-3">
+                                <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
                                   {route.sourcePlatform === "vk" ? (
-                                    <VkIcon className="w-8 h-8" />
+                                    <VkIcon className="w-8 h-8 flex-shrink-0" />
                                   ) : (
-                                    <TelegramIcon className="w-8 h-8" />
+                                    <TelegramIcon className="w-8 h-8 flex-shrink-0" />
                                   )}
-                                  <div>
-                                    <div className="text-xs font-bold uppercase tracking-wide text-lime-cream-400">{t("source")}</div>
-                                    <div className="text-sm font-black uppercase text-lime-cream-200">
+                                  <div className="min-w-0">
+                                    <div className="text-[9px] sm:text-xs font-bold uppercase tracking-wide text-lime-cream-400">{t("source")}</div>
+                                    <div className="text-xs sm:text-sm font-black uppercase text-lime-cream-200 truncate max-w-[80px] min-[380px]:max-w-[120px] sm:max-w-[200px] md:max-w-none">
                                       {sourceChat ? sourceChat.name : t("chat_deleted")}
                                     </div>
-                                    <div className="text-[10px] font-mono text-zinc-500">
+                                    <div className="text-[9px] sm:text-[10px] font-mono text-zinc-500 truncate max-w-[80px] min-[380px]:max-w-[120px] sm:max-w-[200px] md:max-w-none">
                                       {sourceChat ? sourceChat.externalId : t("none")}
                                     </div>
                                   </div>
@@ -642,26 +663,26 @@ export default function Dashboard() {
                                   onClick={() => handleReverseDirection(route)}
                                   type="button"
                                   title={t("reverse_direction")}
-                                  className="w-10 h-10 bg-tropical-teal-500 text-black border-2 border-black flex items-center justify-center neo-button"
+                                  className="w-10 h-10 bg-tropical-teal-500 text-black border-2 border-black flex items-center justify-center neo-button flex-shrink-0"
                                 >
                                   <FlowArrowIcon reversed={route.isReversed} className="w-6 h-6" />
                                 </button>
 
                                 {/* Right Platform Node */}
-                                <div className="flex items-center space-x-3 text-right">
-                                  <div>
-                                    <div className="text-xs font-bold uppercase tracking-wide text-lime-cream-400">{t("destination")}</div>
-                                    <div className="text-sm font-black uppercase text-lime-cream-200">
+                                <div className="flex items-center space-x-2 sm:space-x-3 text-right min-w-0">
+                                  <div className="min-w-0">
+                                    <div className="text-[9px] sm:text-xs font-bold uppercase tracking-wide text-lime-cream-400">{t("destination")}</div>
+                                    <div className="text-xs sm:text-sm font-black uppercase text-lime-cream-200 truncate max-w-[80px] min-[380px]:max-w-[120px] sm:max-w-[200px] md:max-w-none">
                                       {targetChat ? targetChat.name : t("chat_deleted")}
                                     </div>
-                                    <div className="text-[10px] font-mono text-zinc-500">
+                                    <div className="text-[9px] sm:text-[10px] font-mono text-zinc-500 truncate max-w-[80px] min-[380px]:max-w-[120px] sm:max-w-[200px] md:max-w-none">
                                       {targetChat ? targetChat.externalId : t("none")}
                                     </div>
                                   </div>
                                   {route.targetPlatform === "vk" ? (
-                                    <VkIcon className="w-8 h-8" />
+                                    <VkIcon className="w-8 h-8 flex-shrink-0" />
                                   ) : (
-                                    <TelegramIcon className="w-8 h-8" />
+                                    <TelegramIcon className="w-8 h-8 flex-shrink-0" />
                                   )}
                                 </div>
                               </div>
@@ -697,9 +718,9 @@ export default function Dashboard() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       {/* VKontakte column */}
-                      <div className="neo-box p-6 bg-yale-blue-900 flex flex-col space-y-4 chats-column">
+                      <div className="neo-box p-4 sm:p-6 bg-yale-blue-900 flex flex-col space-y-4 chats-column">
                         <div className="flex items-center space-x-2 border-b-2 border-black pb-3">
-                          <VkIcon className="w-6 h-6" />
+                          <VkIcon className="w-6 h-6 flex-shrink-0" />
                           <h3 className="text-lg font-black uppercase text-lime-cream-100">VKontakte</h3>
                         </div>
 
@@ -710,15 +731,15 @@ export default function Dashboard() {
                             {chats
                               .filter((c) => c.platform === "vk")
                               .map((chat) => (
-                                <div key={chat.id} className="p-4 bg-yale-blue-950 border-2 border-black flex justify-between items-center">
-                                  <div>
-                                    <h4 className="font-bold text-lime-cream-200">{chat.name}</h4>
-                                    <span className="text-[10px] font-mono text-zinc-500">{chat.externalId}</span>
+                                <div key={chat.id} className="p-3 sm:p-4 bg-yale-blue-950 border-2 border-black flex justify-between items-center min-w-0 gap-2">
+                                  <div className="min-w-0">
+                                    <h4 className="font-bold text-lime-cream-200 truncate">{chat.name}</h4>
+                                    <span className="text-[10px] font-mono text-zinc-500 block truncate">{chat.externalId}</span>
                                   </div>
                                   <button
                                     onClick={() => handleDeleteChat("vk", chat.id)}
                                     type="button"
-                                    className="px-3 py-1.5 bg-rose-900 border-2 border-black text-[10px] font-bold uppercase neo-button text-lime-cream-100"
+                                    className="px-3 py-1.5 bg-rose-900 border-2 border-black text-[10px] font-bold uppercase neo-button text-lime-cream-100 flex-shrink-0"
                                   >
                                     {t("remove")}
                                   </button>
@@ -729,9 +750,9 @@ export default function Dashboard() {
                       </div>
 
                       {/* Telegram column */}
-                      <div className="neo-box p-6 bg-yale-blue-900 flex flex-col space-y-4 chats-column">
+                      <div className="neo-box p-4 sm:p-6 bg-yale-blue-900 flex flex-col space-y-4 chats-column">
                         <div className="flex items-center space-x-2 border-b-2 border-black pb-3">
-                          <TelegramIcon className="w-6 h-6" />
+                          <TelegramIcon className="w-6 h-6 flex-shrink-0" />
                           <h3 className="text-lg font-black uppercase text-lime-cream-100">Telegram</h3>
                         </div>
 
@@ -742,15 +763,15 @@ export default function Dashboard() {
                             {chats
                               .filter((c) => c.platform === "tg")
                               .map((chat) => (
-                                <div key={chat.id} className="p-4 bg-yale-blue-950 border-2 border-black flex justify-between items-center">
-                                  <div>
-                                    <h4 className="font-bold text-lime-cream-200">{chat.name}</h4>
-                                    <span className="text-[10px] font-mono text-zinc-500">{chat.externalId}</span>
+                                <div key={chat.id} className="p-3 sm:p-4 bg-yale-blue-950 border-2 border-black flex justify-between items-center min-w-0 gap-2">
+                                  <div className="min-w-0">
+                                    <h4 className="font-bold text-lime-cream-200 truncate">{chat.name}</h4>
+                                    <span className="text-[10px] font-mono text-zinc-500 block truncate">{chat.externalId}</span>
                                   </div>
                                   <button
                                     onClick={() => handleDeleteChat("tg", chat.id)}
                                     type="button"
-                                    className="px-3 py-1.5 bg-rose-900 border-2 border-black text-[10px] font-bold uppercase neo-button text-lime-cream-100"
+                                    className="px-3 py-1.5 bg-rose-900 border-2 border-black text-[10px] font-bold uppercase neo-button text-lime-cream-100 flex-shrink-0"
                                   >
                                     {t("remove")}
                                   </button>
@@ -763,69 +784,233 @@ export default function Dashboard() {
                   </div>
 
                   {/* Connect new chat block (Onboarding PIN generation) */}
-                  <div className="neo-box p-6 bg-yale-blue-900 space-y-6">
+                  <div className="neo-box p-4 sm:p-6 bg-yale-blue-900 space-y-6">
                     <h3 className="text-lg font-black uppercase border-b-2 border-black pb-2 text-lime-cream-200">
                       {t("connect_new_chat")}
                     </h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      {/* Generation form */}
-                      <form onSubmit={handleGenerateCode} className="space-y-4">
-                        <div>
-                          <label className="block text-xs font-bold uppercase tracking-wider text-lime-cream-300 mb-2">
-                            {t("select_platform_code")}
-                          </label>
-                          <Dropdown
-                            value={codePlatform}
-                            onChange={(val) => setCodePlatform(val)}
-                            options={platformOptions}
-                          />
+                    <div className="space-y-6">
+                      {/* Step 1: Select platform */}
+                      <div className="space-y-3">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-lime-cream-300">
+                          {t("select_platform_label")}
+                        </label>
+                        
+                        {/* Platform cards grid — scales naturally for more than 2 bots */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                          {platformOptions.map((platform) => {
+                            const isSelected = codePlatform === platform.id;
+                            const PlatformIcon = platform.Icon;
+                            return (
+                              <button
+                                key={platform.id}
+                                type="button"
+                                onClick={() => {
+                                  setCodePlatform(platform.id);
+                                  setGeneratedCode(null);
+                                }}
+                                className={`flex items-center gap-3 p-4 bg-yale-blue-950 border-2 transition-all duration-150 text-left select-none rounded-none cursor-pointer ${
+                                  isSelected
+                                    ? "border-lime-cream-400 shadow-[4px_4px_0px_#000000] translate-y-0.5"
+                                    : "border-black hover:border-lime-cream-600/50 hover:bg-yale-blue-900 active:translate-y-0.5"
+                                }`}
+                              >
+                                <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center bg-yale-blue-900 border border-black/40">
+                                  <PlatformIcon className="w-6 h-6" bgClass={platform.bgClass} />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-[10px] font-mono tracking-widest text-lime-cream-600 uppercase">
+                                    {t("active_messenger")}
+                                  </div>
+                                  <div className="font-bold text-sm text-lime-cream-100 truncate">
+                                    {platform.name}
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
                         </div>
-                        <button
-                          type="submit"
-                          disabled={generatingCode}
-                          className="px-6 py-3 bg-lime-cream-400 text-black font-black uppercase tracking-wider border-2 border-black neo-button text-sm w-full md:w-auto"
-                        >
-                          {generatingCode ? t("generating") : t("generate_code_btn")}
-                        </button>
-                      </form>
 
-                      {/* Display code */}
-                      {generatedCode && (
-                        <div className="p-5 bg-yale-blue-950 border-2 border-black flex flex-col justify-center space-y-2">
-                          <div className="text-xs font-bold uppercase tracking-wider text-lime-cream-400">
-                            {t("your_code")}:
-                          </div>
-                          <div 
-                            onClick={handleCopyCode}
-                            title={t("click_to_copy") || "Click to copy"}
-                            className={`font-mono text-3xl font-black tracking-widest bg-black py-2 px-4 border text-center cursor-pointer select-none transition-colors duration-150 ${
-                              copiedCode 
-                                ? "text-lime-cream-400 border-lime-cream-400 scale-[1.02]" 
-                                : "text-tropical-teal-400 border-zinc-800 hover:border-tropical-teal-400"
+                        {/* Bot quick link info panel */}
+                        {(() => {
+                          const selectedPlatform = platformOptions.find((p) => p.id === codePlatform);
+                          if (!selectedPlatform) return null;
+                          return (
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-yale-blue-950/40 border border-zinc-800/80 text-xs text-lime-cream-300 gap-3 mt-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="w-1.5 h-1.5 rounded-full bg-tropical-teal-500 animate-pulse flex-shrink-0" />
+                                <span className="truncate">
+                                  {t("docs_bots_sub")}
+                                </span>
+                              </div>
+                              <a
+                                href={selectedPlatform.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-yale-blue-900 border border-black hover:border-lime-cream-400 text-lime-cream-200 hover:text-lime-cream-50 transition-all font-bold uppercase tracking-wider text-[10px] flex-shrink-0 select-none group"
+                              >
+                                <span>{t("open_bot_link")} ({selectedPlatform.name})</span>
+                                <LinkArrowIcon className="w-3 h-3 text-lime-cream-500 group-hover:translate-x-0.5 transition-transform" />
+                              </a>
+                            </div>
+                          );
+                        })()}
+                      </div>
+
+                      {/* Step 2: Generate Connection Code */}
+                      <div className="space-y-4">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-lime-cream-300">
+                          {t("generate_action_label")}
+                        </label>
+                        
+                        <div>
+                          <button
+                            type="button"
+                            onClick={handleGenerateCode}
+                            disabled={generatingCode}
+                            className={`px-6 py-3 font-black uppercase tracking-wider border-2 border-black text-sm select-none cursor-pointer transition-all duration-100 flex items-center justify-center gap-2 ${
+                              generatingCode
+                                ? "bg-yale-blue-900 text-zinc-400 cursor-not-allowed"
+                                : "bg-lime-cream-400 text-black hover:bg-lime-cream-300 active:translate-y-0.5 shadow-[4px_4px_0px_#000000] hover:shadow-[2px_2px_0px_#000000]"
                             }`}
                           >
-                            {copiedCode ? (t("copied") || "Copied!") : generatedCode}
-                          </div>
-                          <p className="text-[11px] font-medium text-lime-cream-300 leading-relaxed pt-1">
-                            {t("code_instruction")}{" "}
-                            <span 
-                              onClick={handleCopyCommand}
-                              title={t("click_to_copy") || "Click to copy"}
-                              className={`font-mono bg-black px-1.5 py-0.5 border cursor-pointer select-none transition-colors duration-150 inline-block ${
-                                copiedCommand 
-                                  ? "text-lime-cream-400 border-lime-cream-400 scale-[1.02]" 
-                                  : "text-lime-cream-100 border-zinc-800 hover:border-tropical-teal-400"
-                              }`}
-                            >
-                              {copiedCommand ? (t("copied") || "Copied!") : `/connect ${generatedCode}`}
-                            </span>
-                          </p>
-                          <div className="text-[10px] text-zinc-500 font-mono pt-1">
-                            * {t("code_expires")}
-                          </div>
+                            {generatingCode ? (
+                              <>
+                                <span className="w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin inline-block" />
+                                <span>{t("generating")}</span>
+                              </>
+                            ) : (
+                              <span>{t("generate_code_btn")}</span>
+                            )}
+                          </button>
                         </div>
-                      )}
+                      </div>
+
+                      {/* Display generated code instructions */}
+                      {generatedCode && (() => {
+                        const selectedPlatform = platformOptions.find((p) => p.id === codePlatform);
+                        return (
+                          <div className="p-6 bg-yale-blue-950 border-2 border-black space-y-5 animate-[fadeIn_0.3s_ease-out]">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {/* PIN Code Box */}
+                              <div 
+                                className={`p-4 border-2 transition-all duration-300 flex flex-col justify-between gap-3 ${
+                                  copiedCode 
+                                    ? "border-lime-cream-400 bg-lime-cream-950/10 shadow-[2px_2px_0px_#000]" 
+                                    : "border-zinc-800 bg-black shadow-[4px_4px_0px_#000]"
+                                }`}
+                              >
+                                <div>
+                                  <div className="text-[10px] font-mono tracking-widest text-lime-cream-600 uppercase mb-1">
+                                    {t("your_code")}
+                                  </div>
+                                  <div className="font-mono text-3xl font-black tracking-widest text-tropical-teal-400 select-all">
+                                    {generatedCode.length === 6 
+                                      ? `${generatedCode.slice(0, 3)} ${generatedCode.slice(3)}` 
+                                      : generatedCode
+                                    }
+                                  </div>
+                                </div>
+                                
+                                <button
+                                  type="button"
+                                  onClick={handleCopyCode}
+                                  className={`w-full py-2 border-2 text-xs font-bold uppercase tracking-wider transition-all duration-150 flex items-center justify-center gap-1.5 ${
+                                    copiedCode
+                                      ? "bg-lime-cream-400 text-black border-lime-cream-400"
+                                      : "bg-yale-blue-900 border-black hover:border-lime-cream-400 hover:bg-yale-blue-800 text-lime-cream-200"
+                                  }`}
+                                >
+                                  {copiedCode ? (
+                                    <>
+                                      <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                      <span>{t("copied")}</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                                      </svg>
+                                      <span>{t("copy_code_btn")}</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+
+                              {/* Command Box */}
+                              <div 
+                                className={`p-4 border-2 transition-all duration-300 flex flex-col justify-between gap-3 ${
+                                  copiedCommand 
+                                    ? "border-lime-cream-400 bg-lime-cream-950/10 shadow-[2px_2px_0px_#000]" 
+                                    : "border-zinc-800 bg-black shadow-[4px_4px_0px_#000]"
+                                }`}
+                              >
+                                <div>
+                                  <div className="text-[10px] font-mono tracking-widest text-lime-cream-600 uppercase mb-1">
+                                    {t("copy_cmd_btn")}
+                                  </div>
+                                  <div className="font-mono text-sm font-semibold text-lime-cream-100 select-all py-2.5 px-3 bg-yale-blue-950 border border-zinc-800 break-all">
+                                    /connect {generatedCode}
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={handleCopyCommand}
+                                  className={`w-full py-2 border-2 text-xs font-bold uppercase tracking-wider transition-all duration-150 flex items-center justify-center gap-1.5 ${
+                                    copiedCommand
+                                      ? "bg-lime-cream-400 text-black border-lime-cream-400"
+                                      : "bg-yale-blue-900 border-black hover:border-lime-cream-400 hover:bg-yale-blue-800 text-lime-cream-200"
+                                  }`}
+                                >
+                                  {copiedCommand ? (
+                                    <>
+                                      <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                      <span>{t("copied")}</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                                      </svg>
+                                      <span>{t("copy_cmd_btn")}</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Instructions */}
+                            <div className="p-4 bg-yale-blue-900/50 border border-zinc-800 text-[11px] font-medium text-lime-cream-300 leading-relaxed space-y-2">
+                              <p className="font-semibold uppercase tracking-wider text-lime-cream-500 text-[9px] font-mono">
+                                Инструкция по подключению:
+                              </p>
+                              <p>
+                                1. Добавьте бота {selectedPlatform ? selectedPlatform.handle : ""} в группу или канал в качестве администратора.
+                              </p>
+                              <p>
+                                2. Отправьте боту команду в этом чате. Бот мгновенно зарегистрирует подключение, и чат появится в списке сверху.
+                              </p>
+                              <div className="text-[10px] text-zinc-500 font-mono pt-1">
+                                * {t("code_expires")}
+                              </div>
+                            </div>
+
+                            {/* Polling status indicator */}
+                            <div className="flex items-center justify-center gap-2 p-3 bg-yale-blue-900 border-2 border-black/40 text-xs font-mono text-lime-cream-400 select-none">
+                              <svg className="w-4 h-4 animate-spin text-tropical-teal-500" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                              <span className="animate-pulse">{t("waiting_connection")}</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>

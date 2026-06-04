@@ -127,7 +127,7 @@ export default function DashboardPreview() {
               const flowDirection = route.isReversed ? "right-to-left" : "left-to-right";
 
               return (
-                <div key={route.id} className="p-5 bg-yale-blue-950 border-2 border-black relative overflow-hidden flex flex-col space-y-4">
+                <div key={route.id} className="p-4 sm:p-5 bg-yale-blue-950 border-2 border-black relative overflow-hidden flex flex-col space-y-4">
                   {/* Pipeline Header */}
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
@@ -136,7 +136,7 @@ export default function DashboardPreview() {
                       </h4>
                     </div>
 
-                    <div className="flex space-x-2 w-full md:w-auto justify-end">
+                    <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-start md:justify-end">
                       <button
                         onClick={() => handleToggleShowAuthor(route.id)}
                         type="button"
@@ -156,13 +156,13 @@ export default function DashboardPreview() {
 
                   {/* Flow Visualization with U-shape Conveyor */}
                   <div className="relative pb-28">
-                    <div className="flex justify-between items-center bg-yale-blue-900 p-3 border-2 border-black text-xs relative z-20">
+                    <div className="flex justify-between items-center bg-yale-blue-900 p-2 sm:p-3 border-2 border-black text-xs relative z-20 min-w-0 gap-2">
                       {/* Source */}
-                      <div className="flex items-center space-x-2">
-                        {route.sourcePlatform === "vk" ? <VkIcon className="w-6 h-6" /> : <TelegramIcon className="w-6 h-6" />}
-                        <div>
+                      <div className="flex items-center space-x-2 min-w-0">
+                        {route.sourcePlatform === "vk" ? <VkIcon className="w-6 h-6 flex-shrink-0" /> : <TelegramIcon className="w-6 h-6 flex-shrink-0" />}
+                        <div className="min-w-0">
                           <div className="text-[9px] uppercase font-bold text-lime-cream-400">{t("source")}</div>
-                          <div className="font-black uppercase text-lime-cream-200">{sourceChat?.name}</div>
+                          <div className="font-black uppercase text-lime-cream-200 truncate max-w-[80px] min-[380px]:max-w-[120px] sm:max-w-[200px] md:max-w-none">{sourceChat?.name}</div>
                         </div>
                       </div>
 
@@ -171,18 +171,18 @@ export default function DashboardPreview() {
                         onClick={() => handleReverseDirection(route.id)}
                         type="button"
                         title={t("reverse_direction")}
-                        className="w-8 h-8 bg-tropical-teal-500 text-black border-2 border-black flex items-center justify-center neo-button"
+                        className="w-8 h-8 bg-tropical-teal-500 text-black border-2 border-black flex items-center justify-center neo-button flex-shrink-0"
                       >
                         <FlowArrowIcon reversed={route.isReversed} className="w-5 h-5" />
                       </button>
 
                       {/* Destination */}
-                      <div className="flex items-center space-x-2 text-right">
-                        <div>
+                      <div className="flex items-center space-x-2 text-right min-w-0">
+                        <div className="min-w-0">
                           <div className="text-[9px] uppercase font-bold text-lime-cream-400">{t("destination")}</div>
-                          <div className="font-black uppercase text-lime-cream-200">{targetChat?.name}</div>
+                          <div className="font-black uppercase text-lime-cream-200 truncate max-w-[80px] min-[380px]:max-w-[120px] sm:max-w-[200px] md:max-w-none">{targetChat?.name}</div>
                         </div>
-                        {route.targetPlatform === "vk" ? <VkIcon className="w-6 h-6" /> : <TelegramIcon className="w-6 h-6" />}
+                        {route.targetPlatform === "vk" ? <VkIcon className="w-6 h-6 flex-shrink-0" /> : <TelegramIcon className="w-6 h-6 flex-shrink-0" />}
                       </div>
                     </div>
 
@@ -207,15 +207,15 @@ export default function DashboardPreview() {
             {/* VK Column */}
             <div className="p-4 bg-yale-blue-950 border-2 border-black flex flex-col space-y-3">
               <div className="flex items-center space-x-2 border-b border-black pb-2">
-                <VkIcon className="w-5 h-5" />
+                <VkIcon className="w-5 h-5 flex-shrink-0" />
                 <h4 className="font-black text-sm uppercase text-lime-cream-100">VKontakte</h4>
               </div>
               <div className="space-y-2">
                 {chats.filter(c => c.platform === "vk").map(chat => (
-                  <div key={chat.id} className="p-2.5 bg-yale-blue-900 border border-black flex justify-between items-center text-xs">
-                    <div>
-                      <div className="font-bold text-lime-cream-200">{chat.name}</div>
-                      <div className="text-[9px] font-mono text-zinc-500">{chat.externalId}</div>
+                  <div key={chat.id} className="p-2.5 bg-yale-blue-900 border border-black flex justify-between items-center text-xs min-w-0 gap-2">
+                    <div className="min-w-0">
+                      <div className="font-bold text-lime-cream-200 truncate">{chat.name}</div>
+                      <div className="text-[9px] font-mono text-zinc-500 truncate">{chat.externalId}</div>
                     </div>
                   </div>
                 ))}
@@ -225,15 +225,15 @@ export default function DashboardPreview() {
             {/* Telegram Column */}
             <div className="p-4 bg-yale-blue-950 border-2 border-black flex flex-col space-y-3">
               <div className="flex items-center space-x-2 border-b border-black pb-2">
-                <TelegramIcon className="w-5 h-5" />
+                <TelegramIcon className="w-5 h-5 flex-shrink-0" />
                 <h4 className="font-black text-sm uppercase text-lime-cream-100">Telegram</h4>
               </div>
               <div className="space-y-2">
                 {chats.filter(c => c.platform === "tg").map(chat => (
-                  <div key={chat.id} className="p-2.5 bg-yale-blue-900 border border-black flex justify-between items-center text-xs">
-                    <div>
-                      <div className="font-bold text-lime-cream-200">{chat.name}</div>
-                      <div className="text-[9px] font-mono text-zinc-500">{chat.externalId}</div>
+                  <div key={chat.id} className="p-2.5 bg-yale-blue-900 border border-black flex justify-between items-center text-xs min-w-0 gap-2">
+                    <div className="min-w-0">
+                      <div className="font-bold text-lime-cream-200 truncate">{chat.name}</div>
+                      <div className="text-[9px] font-mono text-zinc-500 truncate">{chat.externalId}</div>
                     </div>
                   </div>
                 ))}

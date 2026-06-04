@@ -75,6 +75,15 @@ const translations = {
     your_code: "Ваш пин-код подключения",
     code_expires: "Код действителен в течение 10 минут",
     select_platform_code: "Выберите платформу для генерации кода",
+    open_bot_link: "Открыть бота",
+    waiting_connection: "Ожидание подключения...",
+    pin_copied: "PIN скопирован!",
+    cmd_copied: "Команда скопирована!",
+    active_messenger: "Активный бот",
+    select_platform_label: "1. Выберите мессенджер",
+    generate_action_label: "2. Получите код подключения",
+    copy_code_btn: "Скопировать код",
+    copy_cmd_btn: "Скопировать команду",
     footer_panel: "Панель управления Chat Forwarder • Сессия активна • Соединение защищено",
 
     // Added/Missing translations
@@ -194,6 +203,15 @@ const translations = {
     your_code: "Your Connection Pin-Code",
     code_expires: "Code is valid for 10 minutes",
     select_platform_code: "Select platform to generate code",
+    open_bot_link: "Open Bot",
+    waiting_connection: "Waiting for connection...",
+    pin_copied: "PIN copied!",
+    cmd_copied: "Command copied!",
+    active_messenger: "Active Bot",
+    select_platform_label: "1. Select platform",
+    generate_action_label: "2. Get connection code",
+    copy_code_btn: "Copy code",
+    copy_cmd_btn: "Copy command",
     footer_panel: "Chat Forwarder Panel • Admin Active • Connection secure",
 
     // Added/Missing translations
